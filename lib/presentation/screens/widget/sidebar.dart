@@ -1,13 +1,12 @@
-// lib/presentation/screens/widget/sidebar.dart
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
+import 'package:google_fonts/google_fonts.dart';
 
 class Sidebar extends StatelessWidget {
   final int selectedIndex;
   final Function(int) onItemSelected;
 
   // Crypto Tech Palette
-  static const Color _sidebarBg = Color(0xFF0F1219); // Darker than main bg
+  static const Color _sidebarBg = Color(0xFF0F1219);
   static const Color _cryptoOrange = Color(0xFFFF8C00);
   static const Color _cryptoGold = Color(0xFFFFD700);
   static const Color _textWhite = Colors.white;
@@ -23,12 +22,10 @@ class Sidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 280,
-      // Dark Sidebar Background
       color: _sidebarBg,
       child: Column(
         children: [
           _buildHeader(),
-          // Subtle Divider
           Container(
             height: 1,
             color: Colors.white.withOpacity(0.05),
@@ -49,7 +46,6 @@ class Sidebar extends StatelessWidget {
           Container(
             width: 44,
             height: 44,
-            // Crypto Glow Logo
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [_cryptoOrange, _cryptoGold],
@@ -157,6 +153,21 @@ class Sidebar extends StatelessWidget {
           isSelected: selectedIndex == 5,
           onTap: () => onItemSelected(5),
         ),
+
+        // ================= NEW AI CHAT ITEM =================
+        const SizedBox(height: 16), // Extra spacing before AI section
+        Divider(color: Colors.white.withOpacity(0.1)),
+        const SizedBox(height: 8),
+        _NavItem(
+          icon: Icons.auto_awesome, // Magic/AI Icon
+          label: 'AI Chat',
+          badge: 'AI',
+          badgeColor: const Color(0xFFFF00FF)
+              .withOpacity(0.2), // Neon Purple/Pink for AI
+          badgeTextColor: const Color(0xFFFF00FF),
+          isSelected: selectedIndex == 6,
+          onTap: () => onItemSelected(6),
+        ),
       ],
     );
   }
@@ -237,9 +248,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Crypto Theme Colors
-    const Color activeColor = Color(0xFFFF8C00); // Orange
-    const Color activeGradientEnd = Color(0xFFFFD700); // Gold
+    const Color activeColor = Color(0xFFFF8C00);
     const Color inactiveIcon = Color(0xFF8B95A5);
     const Color inactiveText = Color(0xFF8B95A5);
 
@@ -252,15 +261,12 @@ class _NavItem extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            // Active State: Orange Glow Background
             color:
                 isSelected ? activeColor.withOpacity(0.1) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            // Active State: Border
             border: isSelected
                 ? Border.all(color: activeColor.withOpacity(0.3))
                 : null,
-            // Active State: Glow Shadow
             boxShadow: isSelected
                 ? [
                     BoxShadow(

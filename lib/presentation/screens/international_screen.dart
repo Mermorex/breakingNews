@@ -1,15 +1,13 @@
-// ==================== INTERNATIONAL NEWS SCREEN ====================
-// File: lib/presentation/screens/international_screen.dart
-
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../data/datasources/rss_remote_datasource.dart';
-import '../../data/models/rss_item_model.dart';
-import 'source_detail_screen.dart';
-import '../../utils/date_time_extension.dart';
+import 'package:news_app/data/datasources/rss_remote_datasource.dart';
+import 'package:news_app/data/models/rss_item_model.dart';
+import 'package:news_app/presentation/screens/source_detail_screen.dart';
 
 class InternationalNewsScreen extends StatefulWidget {
   final bool isEmbedded;
+
   const InternationalNewsScreen({
     super.key,
     this.isEmbedded = false,
@@ -64,6 +62,14 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   final Map<int, List<RssItemModel>> _dashboardData = {};
   bool _isLoading = true;
 
+  // Crypto Palette
+  static const Color _bgColor = Color(0xFF0B0E14);
+  static const Color _cardColor = Color(0xFF151A25);
+  static const Color _accentOrange = Color(0xFFFF8C00);
+  static const Color _accentGold = Color(0xFFFFD700);
+  static const Color _textWhite = Colors.white;
+  static const Color _textGrey = Color(0xFF8B95A5);
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +78,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
 
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
+    _dashboardData.clear();
 
     final futures = _rssSources.asMap().entries.map((entry) async {
       final index = entry.key;
@@ -101,220 +108,260 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     }
   }
 
-  /// Opens article using url_launcher (works on all platforms)
   Future<void> _openArticle(String url) async {
     if (url.isEmpty) return;
-
     String cleanUrl = url.trim();
-
-    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
-      if (cleanUrl.startsWith('//')) {
-        cleanUrl = 'https:$cleanUrl';
-      } else {
-        cleanUrl = 'https://$cleanUrl';
-      }
+    if (!cleanUrl.startsWith('http')) {
+      cleanUrl = 'https://$cleanUrl';
     }
-
     final uri = Uri.parse(cleanUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      debugPrint('Could not launch $cleanUrl');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final content = _buildContent();
+
+    if (widget.isEmbedded) {
+      return content;
+    }
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
+      backgroundColor: _bgColor,
       appBar: AppBar(
-        title: const Text(
+        backgroundColor: _bgColor,
+        elevation: 0,
+        title: Text(
           'International News',
-          style: TextStyle(fontWeight: FontWeight.w600),
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.bold,
+            color: _textWhite,
+          ),
         ),
         centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.green.shade700,
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: Icon(Icons.refresh_rounded, color: _accentOrange),
             onPressed: _loadDashboardData,
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadDashboardData,
-              child: ListView.builder(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                itemCount: _rssSources.length,
-                itemBuilder: (context, index) {
-                  final source = _rssSources[index];
-                  final items = _dashboardData[index] ?? [];
-                  final isArabic = _arabicSources.contains(source);
+      body: content,
+    );
+  }
 
-                  return _DashboardSourceSection(
-                    sourceName: source['name']!,
-                    sourceUrl: source['url']!,
-                    items: items,
-                    sourceIndex: index,
-                    isArabic: isArabic,
-                    onSeeAll: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SourceDetailScreen(
-                            sourceName: source['name']!,
-                            sourceUrl: source['url']!.trim(),
+  Widget _buildContent() {
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(_accentOrange),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Responsive Grid Logic
+        int crossAxisCount = 1;
+        if (constraints.maxWidth > 1200) {
+          crossAxisCount = 3; // Desktop
+        } else if (constraints.maxWidth > 800) {
+          crossAxisCount = 2; // Tablet
+        }
+
+        return CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(24),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 24,
+                  crossAxisSpacing: 24,
+                  // FIX: Landscape ratio (1.1) removes empty space
+                  childAspectRatio: 1.1,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final source = _rssSources[index];
+                    final items = _dashboardData[index] ?? [];
+                    return _SourceBlock(
+                      sourceName: source['name']!,
+                      items: items,
+                      sourceIndex: index,
+                      onSeeAll: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SourceDetailScreen(
+                              sourceName: source['name']!,
+                              sourceUrl: source['url']!.trim(),
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                    onArticleTap: _openArticle,
-                  );
-                },
+                        );
+                      },
+                      onArticleTap: _openArticle,
+                    );
+                  },
+                  childCount: _rssSources.length,
+                ),
               ),
             ),
+          ],
+        );
+      },
     );
   }
 }
 
-class _DashboardSourceSection extends StatelessWidget {
+class _SourceBlock extends StatelessWidget {
   final String sourceName;
-  final String sourceUrl;
   final List<RssItemModel> items;
   final int sourceIndex;
-  final bool isArabic;
   final VoidCallback onSeeAll;
   final Function(String) onArticleTap;
 
-  const _DashboardSourceSection({
+  const _SourceBlock({
     required this.sourceName,
-    required this.sourceUrl,
     required this.items,
     required this.sourceIndex,
-    required this.isArabic,
     required this.onSeeAll,
     required this.onArticleTap,
   });
 
+  // Palette mixing Crypto theme with International colors
   Color _getAccentColor(int index) {
     final colors = [
-      Colors.green.shade600,
-      Colors.teal.shade600,
-      Colors.lightGreen.shade700,
-      Colors.green.shade800,
-      Colors.teal.shade700,
-      Colors.cyan.shade600,
+      const Color(0xFFFF8C00), // Crypto Orange
+      const Color(0xFFFFD700), // Crypto Gold
+      const Color(0xFF00A896), // Teal (International feel)
+      const Color(0xFF7B61FF), // Purple
+      const Color(0xFF00CED1), // Cyan
+      const Color(0xFF20B2AA), // Light Sea Green
     ];
     return colors[index % colors.length];
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final accentColor = _getAccentColor(sourceIndex);
+    final isArabicSource = RegExp(r'[\u0600-\u06FF]').hasMatch(sourceName);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 16, bottom: 12),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Row(
-                  children: [
-                    Text(
-                      sourceName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isArabic
-                            ? Colors.green.shade100
-                            : Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        isArabic ? 'AR' : 'EN',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: isArabic
-                              ? Colors.green.shade800
-                              : Colors.blue.shade800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              TextButton.icon(
-                onPressed: onSeeAll,
-                icon: Text(
-                  'See All',
-                  style: TextStyle(
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF151A25),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 20,
+                  decoration: BoxDecoration(
                     color: accentColor,
-                    fontWeight: FontWeight.w600,
+                    borderRadius: BorderRadius.circular(2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentColor.withOpacity(0.4),
+                        blurRadius: 8,
+                      ),
+                    ],
                   ),
                 ),
-                label: Icon(Icons.arrow_forward_rounded,
-                    size: 18, color: accentColor),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    sourceName,
+                    style: (isArabicSource
+                            ? GoogleFonts.notoKufiArabic()
+                            : GoogleFonts.montserrat())
+                        .copyWith(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onSeeAll,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: accentColor.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'View',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 10,
+                              color: accentColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(Icons.arrow_forward_rounded,
+                              size: 10, color: accentColor),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        if (items.isEmpty)
-          _EmptySourceCard(accentColor: accentColor)
-        else
-          ...items.map((item) => _MiniNewsCard(
-                item: item,
-                accentColor: accentColor,
-                sourceUrl: sourceUrl,
-                onTap: () => onArticleTap(item.link),
-              )),
-        const Divider(height: 32, indent: 16, endIndent: 16),
-      ],
+          const Divider(height: 1, color: Color(0x1AFFFFFF)),
+
+          // List of Articles
+          Expanded(
+            child: items.isEmpty
+                ? _EmptyBlock(accentColor: accentColor)
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (context, i) => _NewsCard(
+                      item: items[i],
+                      accentColor: accentColor,
+                      onTap: () => onArticleTap(items[i].link),
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _MiniNewsCard extends StatelessWidget {
+class _NewsCard extends StatelessWidget {
   final RssItemModel item;
   final Color accentColor;
-  final String sourceUrl;
   final VoidCallback onTap;
 
-  const _MiniNewsCard({
+  const _NewsCard({
     required this.item,
     required this.accentColor,
-    required this.sourceUrl,
     required this.onTap,
   });
 
@@ -324,126 +371,173 @@ class _MiniNewsCard extends StatelessWidget {
         .replaceAll(RegExp(r'<[^>]*>'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    return cleanText.length > 100
-        ? '${cleanText.substring(0, 100)}...'
+    return cleanText.length > 50
+        ? '${cleanText.substring(0, 50)}...'
         : cleanText;
+  }
+
+  bool _containsArabic(String text) {
+    if (text.isEmpty) return false;
+    final arabicRegex = RegExp(
+        r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]');
+    return arabicRegex.hasMatch(text);
+  }
+
+  TextStyle _getTextStyle(bool isArabic, TextStyle style) {
+    if (isArabic) {
+      return GoogleFonts.notoKufiArabic(textStyle: style);
+    } else {
+      return GoogleFonts.montserrat(textStyle: style);
+    }
+  }
+
+  String _formatTimeAgo(DateTime? date) {
+    if (date == null) return 'Just now';
+    final now = DateTime.now();
+    final diff = now.difference(date);
+
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    if (diff.inDays < 1) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return '${date.day}/${date.month}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final isArabic = _containsArabic(item.title);
     final snippet = _getSnippet(item.description);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: Colors.grey.shade100),
-      ),
-      child: InkWell(
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
         child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                accentColor.withOpacity(0.03),
-                Colors.transparent,
-              ],
+            color: const Color(0xFF1C222E),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.03),
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        item.publishedAt?.day.toString() ?? '--',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: accentColor,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                        ),
-                      ),
-                      Text(
-                        _getMonthAbbrev(item.publishedAt?.month),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: accentColor,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Date Widget
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: accentColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      item.publishedAt?.day.toString() ?? '--',
+                      style: GoogleFonts.montserrat(
+                        color: accentColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
                       ),
-                      if (snippet.isNotEmpty) ...[
-                        const SizedBox(height: 4),
+                    ),
+                    Text(
+                      _getMonth(item.publishedAt?.month),
+                      style: GoogleFonts.montserrat(
+                        color: accentColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 7,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: isArabic
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Title + Snippet
+                    Column(
+                      crossAxisAlignment: isArabic
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          snippet,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.grey.shade600,
-                          ),
-                          maxLines: 1,
+                          item.title,
+                          style: _getTextStyle(
+                              isArabic,
+                              TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                height: 1.2,
+                              )),
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
+                          textAlign:
+                              isArabic ? TextAlign.right : TextAlign.left,
                         ),
-                      ],
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.access_time,
-                              size: 12, color: Colors.grey.shade500),
-                          const SizedBox(width: 4),
+                        const SizedBox(height: 2),
+                        if (snippet.isNotEmpty)
                           Text(
-                            item.publishedAt?.toTimeAgo() ?? 'Just now',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: Colors.grey.shade500,
-                              fontSize: 10,
-                            ),
+                            snippet,
+                            style: _getTextStyle(
+                                isArabic,
+                                TextStyle(
+                                  fontSize: 10,
+                                  color: const Color(0xFF8B95A5),
+                                  height: 1.2,
+                                )),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign:
+                                isArabic ? TextAlign.right : TextAlign.left,
                           ),
-                          const Spacer(),
-                          Icon(Icons.open_in_new, size: 14, color: accentColor),
-                        ],
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+
+                    // Time + Icon
+                    Row(
+                      mainAxisAlignment: isArabic
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
+                      children: [
+                        Icon(Icons.access_time_rounded,
+                            size: 9, color: const Color(0xFF6D7680)),
+                        const SizedBox(width: 3),
+                        Text(
+                          _formatTimeAgo(item.publishedAt),
+                          style: GoogleFonts.montserrat(
+                            fontSize: 9,
+                            color: const Color(0xFF6D7680),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.open_in_new,
+                            size: 9, color: accentColor.withOpacity(0.8)),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  String _getMonthAbbrev(int? month) {
+  String _getMonth(int? month) {
     if (month == null) return '';
     const months = [
       'JAN',
@@ -463,35 +557,28 @@ class _MiniNewsCard extends StatelessWidget {
   }
 }
 
-class _EmptySourceCard extends StatelessWidget {
+class _EmptyBlock extends StatelessWidget {
   final Color accentColor;
 
-  const _EmptySourceCard({required this.accentColor});
+  const _EmptyBlock({required this.accentColor});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(Icons.rss_feed_outlined,
-                color: Colors.grey.shade400, size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'No recent updates',
-                style: TextStyle(color: Colors.grey.shade500),
-              ),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.rss_feed_outlined,
+              size: 32, color: accentColor.withOpacity(0.3)),
+          const SizedBox(height: 8),
+          Text(
+            'No updates',
+            style: GoogleFonts.montserrat(
+              fontSize: 12,
+              color: const Color(0xFF8B95A5),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart' as flutter;
 import 'package:flutter/material.dart' hide TextDirection;
 import 'package:intl/intl.dart';
+import 'package:news_app/presentation/screens/ai_chat_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:news_app/presentation/screens/Tunisianscreen.dart';
@@ -98,6 +99,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return const AlgeriaNewsScreen(isEmbedded: true);
       case 5:
         return const InternationalNewsScreen(isEmbedded: true);
+      case 6: // <--- THIS IS THE KEY ADDITION
+        return const AIChatScreen();
       default:
         return _buildDashboardView();
     }
@@ -117,6 +120,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return 'Algerian News';
       case 5:
         return 'International News';
+      case 6: // <--- THIS IS THE KEY ADDITION
+        return 'AI News Assistant';
       default:
         return 'AI RSS Reader';
     }
