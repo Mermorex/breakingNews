@@ -26,7 +26,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       'name': 'Jawhara FM',
       'url': 'https://www.jawharafm.net/ar/rss/showRss/88/1/1'
     },
-    {'name': 'Le Monde', 'url': 'https://www.lemonde.fr/tunisie/rss_full.xml'},
+    {'name': 'tunisie-news', 'url': 'https://tunisie-news.com/feed/'},
     {'name': 'France 24', 'url': 'https://www.france24.com/fr/tag/tunisie/rss'},
     {'name': 'Express FM', 'url': 'https://www.radioexpressfm.com/ar/rss'},
     {
@@ -35,6 +35,11 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     },
     {'name': 'Al Chourouk', 'url': 'https://www.alchourouk.com/rss'},
     {'name': 'وزارة الداخلية', 'url': 'https://www.interieur.gov.tn/ar/feed'},
+    {
+      'name': 'رئاسة الحكومة',
+      'url': 'https://www.tunisie.gov.tn/uploads/Document/fluxRssActualite.xml'
+    },
+    {'name': 'Business News', 'url': 'https://www.businessnews.com.tn/feed'},
   ];
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
@@ -132,7 +137,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
 
   Widget _buildContent() {
     if (_isLoading) {
-      return Center(
+      return const Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation<Color>(_accentOrange),
         ),
@@ -488,9 +493,8 @@ class _NewsCard extends StatelessWidget {
                           ? MainAxisAlignment.end
                           : MainAxisAlignment.start,
                       children: [
-                        Icon(Icons.access_time_rounded,
-                            size: 9,
-                            color: const Color(0xFF6D7680)), // Visible grey
+                        const Icon(Icons.access_time_rounded,
+                            size: 9, color: Color(0xFF6D7680)), // Visible grey
                         const SizedBox(width: 3),
                         Text(
                           _formatTimeAgo(item.publishedAt),
@@ -502,7 +506,9 @@ class _NewsCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Icon(Icons.open_in_new,
-                            size: 9, color: accentColor.withOpacity(0.8)),
+                            // ignore: deprecated_member_use
+                            size: 9,
+                            color: accentColor.withOpacity(0.8)),
                       ],
                     ),
                   ],

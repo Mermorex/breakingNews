@@ -7,7 +7,7 @@ class DashboardConstants {
 
   static const List<Map<String, String>> tunisianFeatured = [
     {'name': 'Mosaïque FM', 'url': 'https://www.mosaiquefm.net/ar/rss'},
-    {'name': 'Al Chourouk', 'url': 'https://www.alchourouk.com/rss'},
+    {'name': 'tunisie-news', 'url': 'https://tunisie-news.com/feed/'},
     {'name': 'وزارة الداخلية', 'url': 'https://www.interieur.gov.tn/ar/feed'},
   ];
 
