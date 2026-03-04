@@ -1,9 +1,22 @@
+// lib/presentation/screens/tunisian_news_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
+import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/presentation/screens/source_detail_screen.dart';
+
+// Public constants for use across all widgets in this file
+class TunisianNewsTheme {
+  static const Color bgColor = Color(0xFF0B0E14);
+  static const Color cardColor = Color(0xFF151A25);
+  static const Color accentOrange = Color(0xFFFF8C00);
+  static const Color accentGold = Color(0xFFFFD700);
+  static const Color textWhite = Colors.white;
+  static const Color textGrey = Color(0xFF8B95A5);
+}
 
 class TunisianNewsScreen extends StatefulWidget {
   final bool isEmbedded;
@@ -20,38 +33,38 @@ class TunisianNewsScreen extends StatefulWidget {
 class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  final List<Map<String, String>> _rssSources = [
-    {'name': 'Mosaïque FM', 'url': 'https://www.mosaiquefm.net/ar/rss'},
-    {
-      'name': 'Jawhara FM',
-      'url': 'https://www.jawharafm.net/ar/rss/showRss/88/1/1'
-    },
-    {'name': 'tunisie-news', 'url': 'https://tunisie-news.com/feed/'},
-    {'name': 'France 24', 'url': 'https://www.france24.com/fr/tag/tunisie/rss'},
-    {'name': 'Express FM', 'url': 'https://www.radioexpressfm.com/ar/rss'},
-    {
-      'name': 'Tunisie Focus',
-      'url': 'https://www.tunisiefocus.com/category/politique/feed'
-    },
-    {'name': 'Al Chourouk', 'url': 'https://www.alchourouk.com/rss'},
-    {'name': 'وزارة الداخلية', 'url': 'https://www.interieur.gov.tn/ar/feed'},
-    {
-      'name': 'رئاسة الحكومة',
-      'url': 'https://www.tunisie.gov.tn/uploads/Document/fluxRssActualite.xml'
-    },
-    {'name': 'Business News', 'url': 'https://www.businessnews.com.tn/feed'},
+  final List<NewsSource> _rssSources = [
+    NewsSource(name: 'Mosaïque FM', url: 'https://www.mosaiquefm.net/ar/rss'),
+    NewsSource(
+        name: 'Jawhara FM',
+        url: 'https://www.jawharafm.net/ar/rss/showRss/88/1/1'),
+    NewsSource(
+        name: 'France 24', url: 'https://www.france24.com/fr/tag/tunisie/rss'),
+    NewsSource(
+        name: 'Express FM', url: 'https://www.radioexpressfm.com/ar/rss'),
+    NewsSource(
+        name: 'Tunisie Focus',
+        url: 'https://www.tunisiefocus.com/category/politique/feed'),
+    NewsSource(name: 'Al Chourouk', url: 'https://www.alchourouk.com/rss'),
+    NewsSource(
+        name: 'وزارة الداخلية',
+        url: 'https://www.interieur.gov.tn/ar/feed',
+        useWebFeed: false),
+    NewsSource(
+        name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
+    NewsSource(
+      name: 'الصحافة اليوم',
+      url: 'https://essahafa.tn/category/أخبار-تونس/',
+      type: SourceType.scrapable, // MUST be scrapable, not rss
+      selectors: {
+        'item': 'a[href*="/20"]',
+      },
+    ),
   ];
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
   bool _isLoading = true;
-
-  // Crypto Palette
-  static const Color _bgColor = Color(0xFF0B0E14);
-  static const Color _cardColor = Color(0xFF151A25);
-  static const Color _accentOrange = Color(0xFFFF8C00);
-  static const Color _accentGold = Color(0xFFFFD700);
-  static const Color _textWhite = Colors.white;
-  static const Color _textGrey = Color(0xFF8B95A5);
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -60,34 +73,71 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     _dashboardData.clear();
 
     final futures = _rssSources.asMap().entries.map((entry) async {
       final index = entry.key;
-      final url = entry.value['url']!.trim();
+      final source = entry.value;
+      final cleanUrl = source.url.trim();
 
-      if (url.isEmpty || url.contains('placeholder')) {
+      if (cleanUrl.isEmpty || cleanUrl.contains('placeholder')) {
         return {index: <RssItemModel>[]};
       }
 
       try {
-        final items = await _dataSource.fetchRssFeed(url, limit: 3);
+        List<RssItemModel> items;
+
+        if (source.type == SourceType.rss) {
+          items = await _dataSource.fetchRssFeed(
+            cleanUrl,
+            sourceName: source.name,
+            limit: 3,
+            useWebFeed: source.useWebFeed,
+          );
+        } else {
+          items = await _dataSource.scrapeWebsite(
+            cleanUrl,
+            source.selectors!,
+            sourceName: source.name,
+            limit: 3,
+          );
+        }
+
         return {index: items};
       } catch (e) {
-        debugPrint('Error loading ${entry.value['name']}: $e');
+        debugPrint('Error loading ${source.name}: $e');
         return {index: <RssItemModel>[]};
       }
     });
 
-    final results = await Future.wait(futures);
+    try {
+      final results = await Future.wait(futures);
 
-    for (var map in results) {
-      _dashboardData.addAll(map);
-    }
+      for (var map in results) {
+        _dashboardData.addAll(map);
+      }
 
-    if (mounted) {
-      setState(() => _isLoading = false);
+      final totalItems = _dashboardData.values
+          .fold<int>(0, (sum, items) => sum + items.length);
+      if (totalItems == 0 && _rssSources.isNotEmpty) {
+        _errorMessage =
+            'Unable to load news. Please check your internet connection.';
+      }
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load news: $e';
+        });
+      }
     }
   }
 
@@ -97,10 +147,38 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     if (!cleanUrl.startsWith('http')) {
       cleanUrl = 'https://$cleanUrl';
     }
-    final uri = Uri.parse(cleanUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+    try {
+      final uri = Uri.parse(cleanUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        _showError('Cannot open link');
+      }
+    } catch (e) {
+      _showError('Invalid link format');
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.montserrat()),
+        backgroundColor: Colors.red.shade800,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _copyLink(String url) async {
+    await Clipboard.setData(ClipboardData(text: url));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Link copied', style: GoogleFonts.montserrat()),
+        backgroundColor: TunisianNewsTheme.accentOrange,
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
   @override
@@ -112,22 +190,24 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: TunisianNewsTheme.bgColor,
       appBar: AppBar(
-        backgroundColor: _bgColor,
+        backgroundColor: TunisianNewsTheme.bgColor,
         elevation: 0,
         title: Text(
           'Tunisian News',
           style: GoogleFonts.montserrat(
             fontWeight: FontWeight.bold,
-            color: _textWhite,
+            color: TunisianNewsTheme.textWhite,
           ),
         ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh_rounded, color: _accentOrange),
-            onPressed: _loadDashboardData,
+            icon: Icon(Icons.refresh_rounded,
+                color: TunisianNewsTheme.accentOrange),
+            onPressed: _isLoading ? null : _loadDashboardData,
+            tooltip: 'Refresh',
           ),
         ],
       ),
@@ -137,93 +217,150 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
 
   Widget _buildContent() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(_accentOrange),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(TunisianNewsTheme.accentOrange),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Loading news...',
+              style: GoogleFonts.montserrat(color: TunisianNewsTheme.textGrey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+            SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              style: GoogleFonts.montserrat(color: TunisianNewsTheme.textGrey),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadDashboardData,
+              icon: Icon(Icons.refresh),
+              label: Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TunisianNewsTheme.accentOrange,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
         ),
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Responsive Grid Logic
         int crossAxisCount = 1;
-        if (constraints.maxWidth > 1200) {
-          crossAxisCount = 3; // Desktop
+        double childAspectRatio = 1.1;
+
+        if (constraints.maxWidth > 1400) {
+          crossAxisCount = 4;
+          childAspectRatio = 1.2;
+        } else if (constraints.maxWidth > 1200) {
+          crossAxisCount = 3;
+          childAspectRatio = 1.1;
         } else if (constraints.maxWidth > 800) {
-          crossAxisCount = 2; // Tablet
+          crossAxisCount = 2;
+          childAspectRatio = 1.0;
+        } else if (constraints.maxWidth > 600) {
+          crossAxisCount = 2;
+          childAspectRatio = 0.9;
         }
 
-        return CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.all(24),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  mainAxisSpacing: 24,
-                  crossAxisSpacing: 24,
-                  // FIX: Changed to 1.1 (Landscape).
-                  // This makes cards wider and shorter, fitting the 3 items perfectly
-                  // without the large white gap at the bottom.
-                  childAspectRatio: 1.1,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final source = _rssSources[index];
-                    final items = _dashboardData[index] ?? [];
-                    return _SourceBlock(
-                      sourceName: source['name']!,
-                      items: items,
-                      sourceIndex: index,
-                      onSeeAll: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SourceDetailScreen(
-                              sourceName: source['name']!,
-                              sourceUrl: source['url']!.trim(),
+        return RefreshIndicator(
+          onRefresh: _loadDashboardData,
+          color: TunisianNewsTheme.accentOrange,
+          backgroundColor: TunisianNewsTheme.cardColor,
+          child: CustomScrollView(
+            physics: AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.all(24),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: 24,
+                    crossAxisSpacing: 24,
+                    childAspectRatio: childAspectRatio,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final source = _rssSources[index];
+                      final items = _dashboardData[index] ?? [];
+                      return SourceBlock(
+                        sourceName: source.name,
+                        items: items,
+                        sourceIndex: index,
+                        onSeeAll: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SourceDetailScreen(
+                                sourceName: source.name,
+                                sourceUrl: source.url.trim(),
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                      onArticleTap: _openArticle,
-                    );
-                  },
-                  childCount: _rssSources.length,
+                          );
+                        },
+                        onArticleTap: _openArticle,
+                        onArticleLongPress: _copyLink,
+                      );
+                    },
+                    childCount: _rssSources.length,
+                  ),
                 ),
               ),
-            ),
-          ],
+              SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-class _SourceBlock extends StatelessWidget {
+class SourceBlock extends StatelessWidget {
   final String sourceName;
   final List<RssItemModel> items;
   final int sourceIndex;
   final VoidCallback onSeeAll;
   final Function(String) onArticleTap;
+  final Function(String) onArticleLongPress;
 
-  const _SourceBlock({
+  const SourceBlock({
+    super.key,
     required this.sourceName,
     required this.items,
     required this.sourceIndex,
     required this.onSeeAll,
     required this.onArticleTap,
+    required this.onArticleLongPress,
   });
 
   Color _getAccentColor(int index) {
     final colors = [
-      const Color(0xFFFF8C00), // Orange
-      const Color(0xFFFFD700), // Gold
-      const Color(0xFFE74C3C), // Red
-      const Color(0xFF3498DB), // Blue
-      const Color(0xFF9B59B6), // Purple
-      const Color(0xFF006233), // Green
+      const Color(0xFFFF8C00),
+      const Color(0xFFFFD700),
+      const Color(0xFFE74C3C),
+      const Color(0xFF3498DB),
+      const Color(0xFF9B59B6),
+      const Color(0xFF006233),
+      const Color(0xFF1ABC9C),
+      const Color(0xFFE67E22),
     ];
     return colors[index % colors.length];
   }
@@ -232,21 +369,28 @@ class _SourceBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final accentColor = _getAccentColor(sourceIndex);
     final isArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(sourceName);
+    final hasItems = items.isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF151A25),
+        color: TunisianNewsTheme.cardColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: Colors.white.withOpacity(0.05),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Padding(
-            padding: const EdgeInsets.all(14), // Slightly reduced padding
+            padding: const EdgeInsets.all(14),
             child: Row(
               children: [
                 Container(
@@ -271,7 +415,7 @@ class _SourceBlock extends StatelessWidget {
                             ? GoogleFonts.notoKufiArabic()
                             : GoogleFonts.montserrat())
                         .copyWith(
-                      fontSize: 15, // Slightly smaller font
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                     ),
@@ -279,58 +423,57 @@ class _SourceBlock extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onSeeAll,
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: accentColor.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'View',
-                            style: GoogleFonts.montserrat(
-                              fontSize: 10,
-                              color: accentColor,
-                              fontWeight: FontWeight.w600,
+                if (hasItems)
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onSeeAll,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: accentColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border:
+                              Border.all(color: accentColor.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'View',
+                              style: GoogleFonts.montserrat(
+                                fontSize: 10,
+                                color: accentColor,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(Icons.arrow_forward_rounded,
-                              size: 10, color: accentColor),
-                        ],
+                            const SizedBox(width: 4),
+                            Icon(Icons.arrow_forward_rounded,
+                                size: 10, color: accentColor),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
           const Divider(height: 1, color: Color(0x1AFFFFFF)),
-
-          // List of Articles
           Expanded(
-            child: items.isEmpty
-                ? _EmptyBlock(accentColor: accentColor)
+            child: !hasItems
+                ? EmptyBlock(accentColor: accentColor, sourceName: sourceName)
                 : ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 8), // Minimal padding
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: items.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: 6), // Reduced spacing
-                    itemBuilder: (context, i) => _NewsCard(
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (context, i) => NewsCard(
                       item: items[i],
                       accentColor: accentColor,
                       onTap: () => onArticleTap(items[i].link),
+                      onLongPress: () => onArticleLongPress(items[i].link),
                     ),
                   ),
           ),
@@ -340,15 +483,18 @@ class _SourceBlock extends StatelessWidget {
   }
 }
 
-class _NewsCard extends StatelessWidget {
+class NewsCard extends StatelessWidget {
   final RssItemModel item;
   final Color accentColor;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
-  const _NewsCard({
+  const NewsCard({
+    super.key,
     required this.item,
     required this.accentColor,
     required this.onTap,
+    required this.onLongPress,
   });
 
   String _getSnippet(String? description) {
@@ -357,7 +503,6 @@ class _NewsCard extends StatelessWidget {
         .replaceAll(RegExp(r'<[^>]*>'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    // Keep it short to fit the new compact card
     return cleanText.length > 50
         ? '${cleanText.substring(0, 50)}...'
         : cleanText;
@@ -386,16 +531,18 @@ class _NewsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isArabic = _containsArabic(item.title);
     final snippet = _getSnippet(item.description);
+    final hasImage = item.imageUrl != null && item.imageUrl!.isNotEmpty;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 12),
-          padding: const EdgeInsets.all(8), // Compact padding
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF1C222E),
+            color: Color(0xFF1C222E),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: Colors.white.withOpacity(0.03),
@@ -404,7 +551,6 @@ class _NewsCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Date Widget (Compact)
               Container(
                 width: 32,
                 height: 32,
@@ -436,16 +582,13 @@ class _NewsCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Content
               Expanded(
                 child: Column(
                   crossAxisAlignment: isArabic
                       ? CrossAxisAlignment.end
                       : CrossAxisAlignment.start,
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween, // Distribute space evenly
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Top: Title + Snippet
                     Column(
                       crossAxisAlignment: isArabic
                           ? CrossAxisAlignment.end
@@ -486,34 +629,43 @@ class _NewsCard extends StatelessWidget {
                           ),
                       ],
                     ),
-
-                    // Bottom: Time + Icon
                     Row(
                       mainAxisAlignment: isArabic
                           ? MainAxisAlignment.end
                           : MainAxisAlignment.start,
                       children: [
-                        const Icon(Icons.access_time_rounded,
-                            size: 9, color: Color(0xFF6D7680)), // Visible grey
+                        Icon(Icons.access_time_rounded,
+                            size: 9, color: Color(0xFF6D7680)),
                         const SizedBox(width: 3),
                         Text(
                           _formatTimeAgo(item.publishedAt),
                           style: GoogleFonts.montserrat(
                             fontSize: 9,
-                            color: const Color(0xFF6D7680), // Visible grey
+                            color: Color(0xFF6D7680),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                         const SizedBox(width: 4),
                         Icon(Icons.open_in_new,
-                            // ignore: deprecated_member_use
-                            size: 9,
-                            color: accentColor.withOpacity(0.8)),
+                            size: 9, color: accentColor.withOpacity(0.8)),
                       ],
                     ),
                   ],
                 ),
               ),
+              if (hasImage) ...[
+                const SizedBox(width: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.network(
+                    item.imageUrl!,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => SizedBox.shrink(),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -541,10 +693,15 @@ class _NewsCard extends StatelessWidget {
   }
 }
 
-class _EmptyBlock extends StatelessWidget {
+class EmptyBlock extends StatelessWidget {
   final Color accentColor;
+  final String sourceName;
 
-  const _EmptyBlock({required this.accentColor});
+  const EmptyBlock({
+    super.key,
+    required this.accentColor,
+    required this.sourceName,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -559,8 +716,18 @@ class _EmptyBlock extends StatelessWidget {
             'No updates',
             style: GoogleFonts.montserrat(
               fontSize: 12,
-              color: const Color(0xFF8B95A5),
+              color: Color(0xFF8B95A5),
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            sourceName,
+            style: GoogleFonts.montserrat(
+              fontSize: 10,
+              color: Color(0xFF6D7680),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

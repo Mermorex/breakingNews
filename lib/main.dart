@@ -17,7 +17,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.deepPurple,
       ),
-      // Point to the separate file here
+      // Point to the separate file herex
       home: const HomeScreen(),
     );
   }

@@ -33,7 +33,7 @@ class RssItemModel {
     final description = getText('description');
 
     // Parse date with multiple format attempts
-    DateTime? publishedAt = _parseDate(pubDateStr);
+    DateTime? publishedAt = parseDate(pubDateStr);
 
     // Extract image
     String? imageUrl;
@@ -67,35 +67,31 @@ class RssItemModel {
     );
   }
 
-  // IMPROVED: More robust date parsing
-  static DateTime? _parseDate(String? dateStr) {
+  // Static parser that can be used by both manual and WebFeed converters
+  static DateTime? parseDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return null;
 
-    // Common RSS date formats
     final formats = [
-      'E, d MMM yyyy HH:mm:ss Z', // RFC 822: Mon, 01 Jan 2024 12:00:00 +0000
-      'E, d MMM yyyy HH:mm:ss z', // With timezone name
-      'E, d MMM yyyy HH:mm:ss zzzz', // With full timezone
-      'yyyy-MM-ddTHH:mm:ssZ', // ISO 8601
-      'yyyy-MM-ddTHH:mm:ss.SSSZ', // ISO 8601 with milliseconds
-      'yyyy-MM-dd HH:mm:ss', // Simple format
-      'd MMM yyyy HH:mm:ss Z', // Without day name
-      'E MMM dd HH:mm:ss Z yyyy', // Twitter format
+      'E, d MMM yyyy HH:mm:ss Z',
+      'E, d MMM yyyy HH:mm:ss z',
+      'E, d MMM yyyy HH:mm:ss zzzz',
+      'yyyy-MM-ddTHH:mm:ssZ',
+      'yyyy-MM-ddTHH:mm:ss.SSSZ',
+      'yyyy-MM-dd HH:mm:ss',
+      'd MMM yyyy HH:mm:ss Z',
+      'E MMM dd HH:mm:ss Z yyyy',
     ];
 
-    // Try each format
     for (final format in formats) {
       try {
         return DateFormat(format, 'en_US').parse(dateStr);
       } catch (_) {}
     }
 
-    // Try DateTime.parse as fallback (ISO 8601)
     try {
       return DateTime.parse(dateStr);
     } catch (_) {}
 
-    // Handle edge cases: some feeds use GMT, UTC without offset
     final cleaned = dateStr
         .replaceAll('GMT', '+0000')
         .replaceAll('UTC', '+0000')
@@ -106,5 +102,7 @@ class RssItemModel {
         return DateFormat(format, 'en_US').parse(cleaned);
       } catch (_) {}
     }
+
+    return null;
   }
 }
