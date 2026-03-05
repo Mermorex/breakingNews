@@ -8,9 +8,10 @@ import '../models/rss_item_model.dart';
 import 'package:flutter/foundation.dart';
 
 class RssRemoteDataSource {
-  static const List<String> _corsProxies = [
-    'https://corsproxy.io/?',
+  // Clean proxy URLs (NO trailing spaces!)
+  static const List<String> _publicProxies = [
     'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?',
     'https://api.codetabs.com/v1/proxy?quest=',
   ];
 
@@ -30,44 +31,78 @@ class RssRemoteDataSource {
       }
 
       String? workingBody;
-      String? usedProxy;
 
-      for (final proxy in _corsProxies) {
+      // Try RSS2JSON first (most reliable, no CORS)
+      try {
+        final rss2JsonUrl =
+            'https://api.rss2json.com/v1/api.json?rss_url=${Uri.encodeComponent(cleanUrl)}';
+        final response = await http
+            .get(Uri.parse(rss2JsonUrl))
+            .timeout(const Duration(seconds: 15));
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data['status'] == 'ok') {
+            final items = (data['items'] as List).map((item) {
+              DateTime? pubDate;
+              try {
+                pubDate = DateTime.parse(item['pubDate']);
+              } catch (_) {}
+
+              return RssItemModel(
+                title: item['title'] ?? 'No Title',
+                link: item['link'] ?? '',
+                description: item['description'] ?? '',
+                pubDate: item['pubDate'] ?? '',
+                imageUrl: item['enclosure']?['link'] ??
+                    item['thumbnail'] ??
+                    _extractImageFromHtml(item['description']),
+                publishedAt: pubDate,
+                source: name,
+              );
+            }).toList();
+
+            debugPrint('✅ $name: RSS2JSON ${items.length} items');
+            return items.take(limit).toList();
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ $name: RSS2JSON failed, trying proxies');
+      }
+
+      // Fallback to public CORS proxies
+      for (final proxy in _publicProxies) {
         try {
           final proxyUrl = '$proxy${Uri.encodeComponent(cleanUrl)}';
           debugPrint('🔍 $name: Trying $proxy');
 
           final response = await http
               .get(Uri.parse(proxyUrl))
-              .timeout(const Duration(seconds: 15));
+              .timeout(const Duration(seconds: 10));
 
           if (response.statusCode == 200) {
             workingBody = _sanitizeBody(response);
-            usedProxy = proxy;
-            debugPrint('✅ $name: Success with ${proxy.split('.').first}');
+            debugPrint('✅ $name: Proxy success');
             break;
-          } else {
-            debugPrint('⚠️ $name: HTTP ${response.statusCode} from $proxy');
           }
         } catch (e) {
-          debugPrint('❌ $name: Proxy $proxy error: $e');
+          debugPrint('❌ $name: Proxy failed: $e');
           continue;
         }
       }
 
       if (workingBody == null || workingBody.isEmpty) {
-        debugPrint('❌ $name: All proxies failed or empty response');
+        debugPrint('❌ $name: All methods failed');
         return [];
       }
 
-      // Check if response is HTML instead of XML
+      // Check if HTML
       if (_isHtmlResponse(workingBody)) {
-        debugPrint(
-            '⚠️ $name: Response is HTML, not RSS XML. Use scraping instead.');
+        debugPrint('⚠️ $name: Got HTML instead of RSS');
         return [];
       }
 
-      // Try dart_rss first
+      // Parse RSS
       if (useWebFeed) {
         try {
           final feed = RssFeed.parse(workingBody);
@@ -75,33 +110,22 @@ class RssRemoteDataSource {
               .map((item) => _convertRssItemToModel(item, name))
               .toList();
 
-          debugPrint('✅ $name: dart_rss parsed ${items.length} items');
+          debugPrint('✅ $name: Parsed ${items.length} items');
           return items.take(limit).toList();
         } catch (e) {
-          debugPrint('⚠️ $name: dart_rss failed ($e), trying manual parser');
+          debugPrint('⚠️ $name: dart_rss failed, trying manual');
         }
       }
 
-      // Fallback to manual XML parser with better error handling
-      try {
-        // Try to clean up common XML issues
-        String cleanedXml = _cleanXmlForParsing(workingBody);
-
-        final document = XmlDocument.parse(cleanedXml);
-        final items = document.findAllElements('item').toList();
-
-        debugPrint('✅ $name: Manual parser found ${items.length} items');
-
-        return items
-            .take(limit)
-            .map((e) => RssItemModel.fromXml(e, sourceName: name))
-            .toList();
-      } catch (e) {
-        debugPrint('❌ $name: Manual parser also failed: $e');
-        return [];
-      }
+      // Manual parse
+      final document = XmlDocument.parse(_cleanXmlForParsing(workingBody));
+      return document
+          .findAllElements('item')
+          .take(limit)
+          .map((e) => RssItemModel.fromXml(e, sourceName: name))
+          .toList();
     } catch (e) {
-      debugPrint('❌ $name: Unexpected error: $e');
+      debugPrint('❌ $name: $e');
       return [];
     }
   }
@@ -118,12 +142,13 @@ class RssRemoteDataSource {
       final cleanUrl = url.trim();
       String? htmlContent;
 
-      for (final proxy in _corsProxies) {
+      // Try public proxies for scraping
+      for (final proxy in _publicProxies) {
         try {
           final proxyUrl = '$proxy${Uri.encodeComponent(cleanUrl)}';
           final response = await http
               .get(Uri.parse(proxyUrl))
-              .timeout(const Duration(seconds: 15));
+              .timeout(const Duration(seconds: 10));
 
           if (response.statusCode == 200) {
             htmlContent = response.body;
@@ -137,12 +162,10 @@ class RssRemoteDataSource {
       if (htmlContent == null) return [];
 
       final document = parse(htmlContent);
-
       final itemSelector = selectors['item'] ?? 'article';
       final elements = document.querySelectorAll(itemSelector);
 
-      debugPrint(
-          '🔍 $name: Found ${elements.length} elements with selector "$itemSelector"');
+      debugPrint('🔍 $name: Found ${elements.length} elements');
 
       final items = <RssItemModel>[];
 
@@ -151,167 +174,92 @@ class RssRemoteDataSource {
 
         String? title;
         String? link;
-        String? desc;
-        DateTime? pubDate;
-        String? imageUrl;
 
-        // Handle different selector types
-        final titleSelector = selectors['title'];
-        final linkSelector = selectors['link'];
-        final descSelector = selectors['desc'];
-        final dateSelector = selectors['date'];
-        final imageSelector = selectors['image'];
-
-        // Get title - try multiple approaches
-        if (titleSelector == null ||
-            titleSelector.isEmpty ||
-            titleSelector == 'self') {
-          // Try element text first
+        // Get title
+        final titleSel = selectors['title'];
+        if (titleSel == null || titleSel.isEmpty || titleSel == 'self') {
           title = element.text.trim();
-
-          // If empty or too short, look for common title patterns
           if (title.length < 5) {
-            final titleEl =
-                element.querySelector('h1, h2, h3, .title, .entry-title');
-            title = titleEl?.text.trim() ?? element.attributes['title'];
+            final titleEl = element.querySelector('h1, h2, h3, .title');
+            title = titleEl?.text.trim();
           }
         } else {
-          final titleEl = element.querySelector(titleSelector);
-          title = titleEl?.text.trim();
+          title = element.querySelector(titleSel)?.text.trim();
         }
 
         // Get link
-        if (linkSelector == null ||
-            linkSelector.isEmpty ||
-            linkSelector == 'self') {
+        final linkSel = selectors['link'];
+        if (linkSel == null || linkSel.isEmpty || linkSel == 'self') {
           link = element.attributes['href'];
-
-          // If element itself doesn't have href, look for child <a>
           if (link == null) {
             final linkEl = element.querySelector('a');
             link = linkEl?.attributes['href'];
-
-            // Also try to get title from link if still empty
             if ((title == null || title.isEmpty) && linkEl != null) {
               title = linkEl.text.trim();
-              // Try title attribute if text is empty
-              if (title.isEmpty) {
-                title = linkEl.attributes['title'];
-              }
             }
           }
         } else {
-          final linkEl = element.querySelector(linkSelector);
-          link = linkEl?.attributes['href'];
+          link = element.querySelector(linkSel)?.attributes['href'];
         }
-
-        // Get description
-        if (descSelector != null &&
-            descSelector.isNotEmpty &&
-            descSelector != 'self') {
-          final descEl = element.querySelector(descSelector);
-          desc = descEl?.text.trim();
-        }
-
-        // Get date
-        if (dateSelector != null &&
-            dateSelector.isNotEmpty &&
-            dateSelector != 'self') {
-          final dateEl = element.querySelector(dateSelector);
-          if (dateEl != null) {
-            final dateStr = dateEl.attributes['datetime'] ?? dateEl.text;
-            pubDate = RssItemModel.parseDate(dateStr);
-          }
-        }
-
-        // Get image - try multiple approaches
-        if (imageSelector != null &&
-            imageSelector.isNotEmpty &&
-            imageSelector != 'self') {
-          final imgEl = element.querySelector(imageSelector);
-          imageUrl = imgEl?.attributes['src'];
-        } else {
-          // Auto-detect image
-          final imgEl = element.querySelector('img');
-          imageUrl = imgEl?.attributes['src'];
-        }
-
-        // Resolve relative URLs
-        if (link != null && !link.startsWith('http')) {
-          link = _resolveUrl(cleanUrl, link);
-        }
-        if (imageUrl != null && !imageUrl.startsWith('http')) {
-          imageUrl = _resolveUrl(cleanUrl, imageUrl);
-        }
-
-        // Clean up title (remove extra whitespace)
-        title = title?.replaceAll(RegExp(r'\s+'), ' ').trim();
 
         // Skip if no valid data
-        if (title == null ||
-            title.isEmpty ||
-            title == 'No Title' ||
-            link == null ||
-            link.isEmpty) {
-          debugPrint(
-              '⚠️ $name: Skipping item $i - title: "$title", link: "$link"');
+        if (title == null || title.isEmpty || link == null || link.isEmpty) {
           continue;
         }
 
+        // Resolve relative URL
+        if (!link.startsWith('http')) {
+          link = _resolveUrl(cleanUrl, link);
+        }
+
         items.add(RssItemModel(
-          title: title,
+          title: title.trim(),
           link: link,
-          description: desc ?? '',
-          pubDate: pubDate?.toString() ?? DateTime.now().toString(),
-          imageUrl: imageUrl,
-          publishedAt: pubDate,
+          description: '',
+          pubDate: DateTime.now().toString(),
           source: name,
         ));
       }
 
-      debugPrint('✅ $name: Scraped ${items.length} valid items');
+      debugPrint('✅ $name: Scraped ${items.length} items');
       return items;
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('❌ $name scraping error: $e');
-      debugPrint('Stack: $stackTrace');
       return [];
     }
   }
 
-  // Check if response is HTML instead of XML
-  bool _isHtmlResponse(String body) {
-    final trimmed = body.trim().toLowerCase();
-    return trimmed.startsWith('<!doctype html') ||
-        trimmed.startsWith('<html') ||
-        (trimmed.contains('<html') && trimmed.contains('</html>'));
+  String? _extractImageFromHtml(String? html) {
+    if (html == null) return null;
+    final match =
+        RegExp(r'src="([^"]+\.(?:jpg|jpeg|png|gif|webp))"').firstMatch(html);
+    return match?.group(1);
   }
 
-  // Clean common XML issues
-  String _cleanXmlForParsing(String xml) {
-    // Remove HTML doctype if present
-    xml = xml.replaceAll(RegExp(r'<!DOCTYPE[^>]*>', caseSensitive: false), '');
+  bool _isHtmlResponse(String body) {
+    final trimmed = body.trim().toLowerCase();
+    return trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html');
+  }
 
-    // Remove HTML comments
+  String _cleanXmlForParsing(String xml) {
+    xml = xml.replaceAll(RegExp(r'<!DOCTYPE[^>]*>', caseSensitive: false), '');
     xml = xml.replaceAll(RegExp(r'<!--[\s\S]*?-->', caseSensitive: false), '');
 
-    // Try to extract RSS content from HTML if wrapped
     if (xml.contains('<rss') && xml.contains('</rss>')) {
-      final rssStart = xml.indexOf('<rss');
-      final rssEnd = xml.lastIndexOf('</rss>') + 6;
-      if (rssStart >= 0 && rssEnd > rssStart) {
-        xml = xml.substring(rssStart, rssEnd);
+      final start = xml.indexOf('<rss');
+      final end = xml.lastIndexOf('</rss>') + 6;
+      if (start >= 0 && end > start) {
+        xml = xml.substring(start, end);
       }
     }
 
-    // Unescape common HTML entities in XML
-    xml = xml
+    return xml
         .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"');
-
-    return xml.trim();
+        .replaceAll('&quot;', '"')
+        .trim();
   }
 
   RssItemModel _convertRssItemToModel(RssItem item, String sourceName) {
@@ -321,26 +269,18 @@ class RssRemoteDataSource {
       imageUrl = item.media!.contents!.first.url;
     } else if (item.enclosure?.url != null) {
       imageUrl = item.enclosure!.url;
-    } else if (item.media?.thumbnails?.isNotEmpty ?? false) {
-      imageUrl = item.media!.thumbnails!.first.url;
     } else if (item.description != null) {
-      final imgMatch = RegExp(r'src="([^"]+\.(?:jpg|jpeg|png|gif|webp))"')
-          .firstMatch(item.description!);
-      imageUrl = imgMatch?.group(1);
-    }
-
-    DateTime? publishedAt;
-    if (item.pubDate != null) {
-      publishedAt = RssItemModel.parseDate(item.pubDate!);
+      imageUrl = _extractImageFromHtml(item.description);
     }
 
     return RssItemModel(
       title: item.title ?? 'No Title',
       link: item.link ?? '',
       pubDate: item.pubDate ?? DateTime.now().toString(),
-      description: item.description ?? item.content?.value ?? '',
+      description: item.description ?? '',
       imageUrl: imageUrl,
-      publishedAt: publishedAt,
+      publishedAt:
+          item.pubDate != null ? RssItemModel.parseDate(item.pubDate!) : null,
       source: sourceName,
     );
   }
@@ -366,8 +306,6 @@ class RssRemoteDataSource {
   bool _looksGarbled(String text) {
     return text.contains('Ã©') ||
         text.contains('Ã¨') ||
-        text.contains('Ã ') ||
-        text.contains('Ã´') ||
         text.contains('Ã§') ||
         text.contains('Ù') ||
         text.contains('Ø§');
@@ -375,7 +313,6 @@ class RssRemoteDataSource {
 
   String _resolveUrl(String base, String relative) {
     if (relative.startsWith('http')) return relative;
-    final baseUri = Uri.parse(base);
-    return baseUri.resolve(relative).toString();
+    return Uri.parse(base).resolve(relative).toString();
   }
 }

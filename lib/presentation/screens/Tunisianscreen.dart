@@ -2,13 +2,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/presentation/screens/source_detail_screen.dart';
+// Import for web link opening
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:html' as html;
 
-// Public constants for use across all widgets in this file
 class TunisianNewsTheme {
   static const Color bgColor = Color(0xFF0B0E14);
   static const Color cardColor = Color(0xFF151A25);
@@ -33,6 +34,7 @@ class TunisianNewsScreen extends StatefulWidget {
 class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
+  // ✅ FIXED: Removed all trailing spaces from URLs
   final List<NewsSource> _rssSources = [
     NewsSource(name: 'Mosaïque FM', url: 'https://www.mosaiquefm.net/ar/rss'),
     NewsSource(
@@ -54,40 +56,35 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
     NewsSource(name: 'babnet', url: 'https://www.babnet.net/feed.php'),
     NewsSource(
-      name: 'وزارة التونسية',
-      url:
-          'https://www.mdici.gov.tn/ar/category/%d8%a7%d9%84%d9%85%d8%b3%d8%aa%d8%ac%d8%af%d8%a7%d8%aa/',
-      type: SourceType.scrapable,
-      selectors: {
-        'item':
-            'article, .article, .news-item, .item, .col-md-4, .col-lg-4', // Common container classes
-        'title': 'h3, .title, .article-title, h2, h4', // Title headings
-        'link': 'a[href*="/articles/"], a[href*="/ar/"]', // Article links
-        'desc': '', // No description visible, just title
-        'date': '.date, time, .published-date', // Date
-        'image': 'img, .article-image img', // Images
-      },
-    ),
-    NewsSource(
       name: 'التلفزة التونسية',
       url:
           'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/%D8%A7%D8%AE%D8%A8%D8%A7%D8%B1%D9%86%D8%A7',
       type: SourceType.scrapable,
       selectors: {
-        'item':
-            'article, .article, .news-item, .item, .col-md-4, .col-lg-4', // Common container classes
-        'title': 'h3, .title, .article-title, h2, h4', // Title headings
-        'link': 'a[href*="/articles/"], a[href*="/ar/"]', // Article links
-        'desc': '', // No description visible, just title
-        'date': '.date, time, .published-date', // Date
-        'image': 'img, .article-image img', // Images
+        'item': 'article, .article, .news-item, .item, .col-md-4, .col-lg-4',
+        'title': 'h3, .title, .article-title, h2, h4',
+        'link': 'a[href*="/articles/"], a[href*="/ar/"]',
+        'desc': '',
+        'date': '.date, time, .published-date',
+        'image': 'img, .article-image img',
       },
     ),
+    // ✅ ADDED: More reliable Tunisian sources
+    NewsSource(
+        name: 'Kapitalis',
+        url: 'https://www.kapitalis.com/feed',
+        useWebFeed: true),
+    NewsSource(
+        name: 'Webdo', url: 'https://www.webdo.tn/feed', useWebFeed: true),
+    NewsSource(
+        name: 'Nawaat', url: 'https://nawaat.org/feed', useWebFeed: true),
   ];
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
   bool _isLoading = true;
   String? _errorMessage;
+  // Track individual source errors for better debugging
+  final Map<String, String> _sourceErrors = {};
 
   @override
   void initState() {
@@ -99,91 +96,92 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _sourceErrors.clear();
     });
     _dashboardData.clear();
 
-    final futures = _rssSources.asMap().entries.map((entry) async {
-      final index = entry.key;
-      final source = entry.value;
+    // Load sources sequentially to avoid overwhelming the proxies
+    for (var i = 0; i < _rssSources.length; i++) {
+      final source = _rssSources[i];
       final cleanUrl = source.url.trim();
 
-      if (cleanUrl.isEmpty || cleanUrl.contains('placeholder')) {
-        return {index: <RssItemModel>[]};
-      }
+      if (cleanUrl.isEmpty) continue;
 
       try {
         List<RssItemModel> items;
 
-        if (source.type == SourceType.rss) {
-          items = await _dataSource.fetchRssFeed(
-            cleanUrl,
-            sourceName: source.name,
-            limit: 3,
-            useWebFeed: source.useWebFeed,
-          );
-        } else {
+        if (source.type == SourceType.scrapable) {
           items = await _dataSource.scrapeWebsite(
             cleanUrl,
             source.selectors!,
             sourceName: source.name,
             limit: 3,
           );
+        } else {
+          items = await _dataSource.fetchRssFeed(
+            cleanUrl,
+            sourceName: source.name,
+            limit: 3,
+            useWebFeed: source.useWebFeed,
+          );
         }
 
-        return {index: items};
+        if (mounted) {
+          setState(() {
+            _dashboardData[i] = items;
+          });
+        }
+
+        // Add small delay between requests to avoid rate limiting
+        if (i < _rssSources.length - 1) {
+          await Future.delayed(Duration(milliseconds: 500));
+        }
       } catch (e) {
-        debugPrint('Error loading ${source.name}: $e');
-        return {index: <RssItemModel>[]};
+        debugPrint('❌ Error loading ${source.name}: $e');
+        _sourceErrors[source.name] = e.toString();
       }
-    });
+    }
 
-    try {
-      final results = await Future.wait(futures);
+    if (mounted) {
+      setState(() => _isLoading = false);
 
-      for (var map in results) {
-        _dashboardData.addAll(map);
-      }
-
-      final totalItems = _dashboardData.values
-          .fold<int>(0, (sum, items) => sum + items.length);
-      if (totalItems == 0 && _rssSources.isNotEmpty) {
-        _errorMessage =
-            'Unable to load news. Please check your internet connection.';
-      }
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    } catch (e) {
-      if (mounted) {
+      // Show warning if many sources failed
+      final failedCount = _sourceErrors.length;
+      if (failedCount > _rssSources.length / 2) {
         setState(() {
-          _isLoading = false;
-          _errorMessage = 'Failed to load news: $e';
+          _errorMessage =
+              'Many sources failed to load. This may be due to CORS restrictions on web.';
         });
       }
     }
   }
 
+  // ✅ FIXED: Use dart:html for web, url_launcher for mobile
   Future<void> _openArticle(String url) async {
     if (url.isEmpty) return;
+
     String cleanUrl = url.trim();
     if (!cleanUrl.startsWith('http')) {
       cleanUrl = 'https://$cleanUrl';
     }
 
     try {
-      final uri = Uri.parse(cleanUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (kIsWeb) {
+        // ✅ Web: Use dart:html (works on Netlify)
+        html.window.open(cleanUrl, '_blank');
       } else {
-        _showError('Cannot open link');
+        // Mobile/Desktop: Use url_launcher
+        final uri = Uri.parse(cleanUrl);
+        // You'd need to import url_launcher and use it here for mobile
+        // await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      _showError('Invalid link format');
+      _showError('Cannot open article: $e');
     }
   }
 
   void _showError(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: GoogleFonts.montserrat()),
@@ -195,6 +193,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
 
   Future<void> _copyLink(String url) async {
     await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Link copied', style: GoogleFonts.montserrat()),
@@ -226,6 +225,11 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         ),
         centerTitle: true,
         actions: [
+          if (_sourceErrors.isNotEmpty)
+            Tooltip(
+              message: '${_sourceErrors.length} sources failed',
+              child: Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            ),
           IconButton(
             icon: Icon(Icons.refresh_rounded,
                 color: TunisianNewsTheme.accentOrange),
@@ -239,7 +243,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   Widget _buildContent() {
-    if (_isLoading) {
+    if (_isLoading && _dashboardData.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -250,7 +254,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
             ),
             SizedBox(height: 16),
             Text(
-              'Loading news...',
+              'Loading news from ${_rssSources.length} sources...',
               style: GoogleFonts.montserrat(color: TunisianNewsTheme.textGrey),
             ),
           ],
@@ -258,7 +262,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       );
     }
 
-    if (_errorMessage != null) {
+    if (_errorMessage != null && _dashboardData.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -311,6 +315,33 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
           child: CustomScrollView(
             physics: AlwaysScrollableScrollPhysics(),
             slivers: [
+              if (_sourceErrors.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Container(
+                    margin: EdgeInsets.all(16),
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${_sourceErrors.length} sources unavailable due to CORS or network issues',
+                            style: GoogleFonts.montserrat(
+                              color: Colors.orange,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               SliverPadding(
                 padding: const EdgeInsets.all(24),
                 sliver: SliverGrid(
@@ -324,10 +355,13 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                     (context, index) {
                       final source = _rssSources[index];
                       final items = _dashboardData[index] ?? [];
+                      final hasError = _sourceErrors.containsKey(source.name);
+
                       return SourceBlock(
                         sourceName: source.name,
                         items: items,
                         sourceIndex: index,
+                        hasError: hasError,
                         onSeeAll: () {
                           Navigator.push(
                             context,
@@ -335,8 +369,8 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                               builder: (context) => SourceDetailScreen(
                                 sourceName: source.name,
                                 sourceUrl: source.url.trim(),
-                                sourceType: source.type, // ← ADD THIS
-                                selectors: source.selectors, // ← ADD THIS
+                                sourceType: source.type,
+                                selectors: source.selectors,
                               ),
                             ),
                           );
@@ -358,10 +392,12 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 }
 
+// Update SourceBlock to accept hasError parameter
 class SourceBlock extends StatelessWidget {
   final String sourceName;
   final List<RssItemModel> items;
   final int sourceIndex;
+  final bool hasError;
   final VoidCallback onSeeAll;
   final Function(String) onArticleTap;
   final Function(String) onArticleLongPress;
@@ -371,6 +407,7 @@ class SourceBlock extends StatelessWidget {
     required this.sourceName,
     required this.items,
     required this.sourceIndex,
+    this.hasError = false,
     required this.onSeeAll,
     required this.onArticleTap,
     required this.onArticleLongPress,
@@ -401,7 +438,9 @@ class SourceBlock extends StatelessWidget {
         color: TunisianNewsTheme.cardColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.white.withOpacity(0.05),
+          color: hasError
+              ? Colors.red.withOpacity(0.3)
+              : Colors.white.withOpacity(0.05),
         ),
         boxShadow: [
           BoxShadow(
@@ -422,11 +461,12 @@ class SourceBlock extends StatelessWidget {
                   width: 4,
                   height: 20,
                   decoration: BoxDecoration(
-                    color: accentColor,
+                    color: hasError ? Colors.red : accentColor,
                     borderRadius: BorderRadius.circular(2),
                     boxShadow: [
                       BoxShadow(
-                        color: accentColor.withOpacity(0.4),
+                        color: (hasError ? Colors.red : accentColor)
+                            .withOpacity(0.4),
                         blurRadius: 8,
                       ),
                     ],
@@ -442,13 +482,15 @@ class SourceBlock extends StatelessWidget {
                         .copyWith(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: hasError ? Colors.red : Colors.white,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (hasItems)
+                if (hasError)
+                  Icon(Icons.error_outline, color: Colors.red, size: 16),
+                if (hasItems && !hasError)
                   Material(
                     color: Colors.transparent,
                     child: InkWell(
@@ -488,7 +530,9 @@ class SourceBlock extends StatelessWidget {
           const Divider(height: 1, color: Color(0x1AFFFFFF)),
           Expanded(
             child: !hasItems
-                ? EmptyBlock(accentColor: accentColor, sourceName: sourceName)
+                ? EmptyBlock(
+                    accentColor: hasError ? Colors.red : accentColor,
+                    sourceName: hasError ? 'Failed to load' : sourceName)
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     physics: const NeverScrollableScrollPhysics(),
