@@ -53,7 +53,21 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     NewsSource(
         name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
     NewsSource(name: 'babnet', url: 'https://www.babnet.net/feed.php'),
-    NewsSource(name: 'babnet', url: 'https://ar.tunisienumerique.com/feed/'),
+    NewsSource(
+      name: 'وزارة التونسية',
+      url:
+          'https://www.mdici.gov.tn/ar/category/%d8%a7%d9%84%d9%85%d8%b3%d8%aa%d8%ac%d8%af%d8%a7%d8%aa/',
+      type: SourceType.scrapable,
+      selectors: {
+        'item':
+            'article, .article, .news-item, .item, .col-md-4, .col-lg-4', // Common container classes
+        'title': 'h3, .title, .article-title, h2, h4', // Title headings
+        'link': 'a[href*="/articles/"], a[href*="/ar/"]', // Article links
+        'desc': '', // No description visible, just title
+        'date': '.date, time, .published-date', // Date
+        'image': 'img, .article-image img', // Images
+      },
+    ),
     NewsSource(
       name: 'التلفزة التونسية',
       url:
