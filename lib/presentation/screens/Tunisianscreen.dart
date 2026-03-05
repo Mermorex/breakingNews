@@ -1,4 +1,3 @@
-// lib/presentation/screens/tunisian_news_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,9 +5,9 @@ import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/presentation/screens/source_detail_screen.dart';
-// Import for web link opening
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:html' as html;
+// Use url_launcher for cross-platform link opening
+import 'package:url_launcher/url_launcher.dart';
 
 class TunisianNewsTheme {
   static const Color bgColor = Color(0xFF0B0E14);
@@ -34,26 +33,20 @@ class TunisianNewsScreen extends StatefulWidget {
 class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  // ✅ FIXED: Removed all trailing spaces from URLs
   final List<NewsSource> _rssSources = [
     NewsSource(name: 'Mosaïque FM', url: 'https://www.mosaiquefm.net/ar/rss'),
     NewsSource(
         name: 'Jawhara FM',
         url: 'https://www.jawharafm.net/ar/rss/showRss/88/1/1'),
     NewsSource(
-        name: 'France 24', url: 'https://www.france24.com/fr/tag/tunisie/rss'),
-    NewsSource(
         name: 'Express FM', url: 'https://www.radioexpressfm.com/ar/rss'),
     NewsSource(
         name: 'Tunisie Focus',
         url: 'https://www.tunisiefocus.com/category/politique/feed'),
-    NewsSource(name: 'Al Chourouk', url: 'https://www.alchourouk.com/rss'),
     NewsSource(
         name: 'وزارة الداخلية',
         url: 'https://www.interieur.gov.tn/ar/feed',
         useWebFeed: false),
-    NewsSource(
-        name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
     NewsSource(name: 'babnet', url: 'https://www.babnet.net/feed.php'),
     NewsSource(
       name: 'التلفزة التونسية',
@@ -69,13 +62,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         'image': 'img, .article-image img',
       },
     ),
-    // ✅ ADDED: More reliable Tunisian sources
-    NewsSource(
-        name: 'Kapitalis',
-        url: 'https://www.kapitalis.com/feed',
-        useWebFeed: true),
-    NewsSource(
-        name: 'Webdo', url: 'https://www.webdo.tn/feed', useWebFeed: true),
     NewsSource(
         name: 'Nawaat', url: 'https://nawaat.org/feed', useWebFeed: true),
   ];
@@ -83,7 +69,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   final Map<int, List<RssItemModel>> _dashboardData = {};
   bool _isLoading = true;
   String? _errorMessage;
-  // Track individual source errors for better debugging
   final Map<String, String> _sourceErrors = {};
 
   @override
@@ -92,6 +77,8 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     _loadDashboardData();
   }
 
+  /// ✅ OPTIMIZED: Loads all sources in parallel using Future.wait
+  /// This reduces load time from (N * Time) to (Max Time of 1 source)
   Future<void> _loadDashboardData() async {
     setState(() {
       _isLoading = true;
@@ -100,63 +87,66 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     });
     _dashboardData.clear();
 
-    // Load sources sequentially to avoid overwhelming the proxies
-    for (var i = 0; i < _rssSources.length; i++) {
-      final source = _rssSources[i];
-      final cleanUrl = source.url.trim();
+    // Create a list of fetch tasks
+    final fetchTasks = _rssSources.asMap().entries.map((entry) {
+      final index = entry.key;
+      final source = entry.value;
+      return _fetchSource(index, source);
+    }).toList();
 
-      if (cleanUrl.isEmpty) continue;
-
-      try {
-        List<RssItemModel> items;
-
-        if (source.type == SourceType.scrapable) {
-          items = await _dataSource.scrapeWebsite(
-            cleanUrl,
-            source.selectors!,
-            sourceName: source.name,
-            limit: 3,
-          );
-        } else {
-          items = await _dataSource.fetchRssFeed(
-            cleanUrl,
-            sourceName: source.name,
-            limit: 3,
-            useWebFeed: source.useWebFeed,
-          );
-        }
-
-        if (mounted) {
-          setState(() {
-            _dashboardData[i] = items;
-          });
-        }
-
-        // Add small delay between requests to avoid rate limiting
-        if (i < _rssSources.length - 1) {
-          await Future.delayed(Duration(milliseconds: 500));
-        }
-      } catch (e) {
-        debugPrint('❌ Error loading ${source.name}: $e');
-        _sourceErrors[source.name] = e.toString();
-      }
+    // Wait for all tasks to complete in parallel
+    // Added global timeout to ensure UI never hangs forever
+    try {
+      await Future.wait(fetchTasks).timeout(const Duration(seconds: 20));
+    } catch (e) {
+      debugPrint('⚠️ Global Timeout or Error: $e');
     }
 
     if (mounted) {
-      setState(() => _isLoading = false);
-
-      // Show warning if many sources failed
-      final failedCount = _sourceErrors.length;
-      if (failedCount > _rssSources.length / 2) {
-        setState(() {
-          _errorMessage =
-              'Many sources failed to load. This may be due to CORS restrictions on web.';
-        });
-      }
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
-  // ✅ FIXED: Use dart:html for web, url_launcher for mobile
+  Future<void> _fetchSource(int index, NewsSource source) async {
+    final cleanUrl = source.url.trim();
+    if (cleanUrl.isEmpty) return;
+
+    try {
+      List<RssItemModel> items;
+
+      if (source.type == SourceType.scrapable) {
+        items = await _dataSource.scrapeWebsite(
+          cleanUrl,
+          source.selectors!,
+          sourceName: source.name,
+          limit: 3,
+        );
+      } else {
+        items = await _dataSource.fetchRssFeed(
+          cleanUrl,
+          sourceName: source.name,
+          limit: 3,
+          useWebFeed: source.useWebFeed,
+        );
+      }
+
+      if (mounted && items.isNotEmpty) {
+        // Use setState to update the specific key in the map
+        // This might cause minor repaints, but ensures data shows up ASAP
+        setState(() {
+          _dashboardData[index] = items;
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ ${source.name}: $e');
+      _sourceErrors[source.name] = e.toString();
+    }
+  }
+
+  /// ✅ FIXED: Cross-platform link opening using url_launcher
+  /// Works on Web, Android, and iOS without conditional imports
   Future<void> _openArticle(String url) async {
     if (url.isEmpty) return;
 
@@ -166,14 +156,11 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     }
 
     try {
-      if (kIsWeb) {
-        // ✅ Web: Use dart:html (works on Netlify)
-        html.window.open(cleanUrl, '_blank');
+      final uri = Uri.parse(cleanUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        // Mobile/Desktop: Use url_launcher
-        final uri = Uri.parse(cleanUrl);
-        // You'd need to import url_launcher and use it here for mobile
-        // await launchUrl(uri, mode: LaunchMode.externalApplication);
+        _showError('Could not open link');
       }
     } catch (e) {
       _showError('Cannot open article: $e');
@@ -243,6 +230,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   Widget _buildContent() {
+    // Initial Loading State
     if (_isLoading && _dashboardData.isEmpty) {
       return Center(
         child: Column(
@@ -262,6 +250,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       );
     }
 
+    // Error State
     if (_errorMessage != null && _dashboardData.isEmpty) {
       return Center(
         child: Column(
@@ -289,6 +278,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       );
     }
 
+    // Content Grid
     return LayoutBuilder(
       builder: (context, constraints) {
         int crossAxisCount = 1;
@@ -392,7 +382,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 }
 
-// Update SourceBlock to accept hasError parameter
+// SourceBlock Widget (Unchanged)
 class SourceBlock extends StatelessWidget {
   final String sourceName;
   final List<RssItemModel> items;
@@ -552,6 +542,7 @@ class SourceBlock extends StatelessWidget {
   }
 }
 
+// NewsCard Widget (Unchanged)
 class NewsCard extends StatelessWidget {
   final RssItemModel item;
   final Color accentColor;

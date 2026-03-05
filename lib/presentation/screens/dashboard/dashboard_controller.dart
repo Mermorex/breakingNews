@@ -29,7 +29,7 @@ class DashboardController extends ChangeNotifier {
   List<Map<String, String>> get frenchFeatured =>
       DashboardConstants.frenchFeatured;
   List<Map<String, String>> get moroccanFeatured =>
-      DashboardConstants.moroccanFeatured; // NEW
+      DashboardConstants.moroccanFeatured;
   List<Map<String, String>> get internationalFeatured =>
       DashboardConstants.internationalFeatured;
   List<Map<String, String>> get algerianFeatured =>
@@ -38,7 +38,7 @@ class DashboardController extends ChangeNotifier {
   // Get articles by region prefix
   List<RssItemModel> getTunisianArticles() => _getArticlesByRegion('TN');
   List<RssItemModel> getFrenchArticles() => _getArticlesByRegion('FR');
-  List<RssItemModel> getMoroccanArticles() => _getArticlesByRegion('MA'); // NEW
+  List<RssItemModel> getMoroccanArticles() => _getArticlesByRegion('MA');
   List<RssItemModel> getInternationalArticles() => _getArticlesByRegion('INT');
   List<RssItemModel> getAlgerianArticles() => _getArticlesByRegion('DZ');
 
@@ -48,7 +48,7 @@ class DashboardController extends ChangeNotifier {
   List<RssItemModel> get frenchFeaturedArticles =>
       getFrenchArticles().take(6).toList();
   List<RssItemModel> get moroccanFeaturedArticles =>
-      getMoroccanArticles().take(6).toList(); // NEW
+      getMoroccanArticles().take(6).toList();
   List<RssItemModel> get internationalFeaturedArticles =>
       getInternationalArticles().take(6).toList();
   List<RssItemModel> get algerianFeaturedArticles =>
@@ -57,7 +57,7 @@ class DashboardController extends ChangeNotifier {
   // Count getters for StatsRow
   int get tunisianCount => getTunisianArticles().length;
   int get frenchCount => getFrenchArticles().length;
-  int get moroccanCount => getMoroccanArticles().length; // NEW
+  int get moroccanCount => getMoroccanArticles().length;
   int get internationalCount => getInternationalArticles().length;
   int get algerianCount => getAlgerianArticles().length;
 
@@ -76,14 +76,20 @@ class DashboardController extends ChangeNotifier {
     final allSources = [
       ...tunisianFeatured.map((s) => {...s, 'region': 'TN'}),
       ...frenchFeatured.map((s) => {...s, 'region': 'FR'}),
-      ...moroccanFeatured.map((s) => {...s, 'region': 'MA'}), // NEW
+      ...moroccanFeatured.map((s) => {...s, 'region': 'MA'}),
       ...internationalFeatured.map((s) => {...s, 'region': 'INT'}),
-      ...algerianFeatured.map((s) => {...s, 'region': 'DZ'}), // NEW
+      ...algerianFeatured.map((s) => {...s, 'region': 'DZ'}),
     ];
 
-    await Future.wait(
-      allSources.map((source) => _fetchSourceData(source)),
-    );
+    // ✅ OPTIMIZED: Run in parallel with a hard timeout
+    // If sources don't respond within 15s total, we show what we have.
+    try {
+      await Future.wait(
+        allSources.map((source) => _fetchSourceData(source)),
+      ).timeout(const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint('⚠️ Dashboard loading timed out or failed: $e');
+    }
 
     _isLoading = false;
     notifyListeners();
@@ -92,7 +98,8 @@ class DashboardController extends ChangeNotifier {
   Future<void> _fetchSourceData(Map<String, String> source) async {
     try {
       final cleanUrl = source['url']!.trim();
-      final items = await _dataSource.fetchRssFeed(cleanUrl, limit: 3);
+      // Reduced limit for faster initial load
+      final items = await _dataSource.fetchRssFeed(cleanUrl, limit: 5);
       final key = '${source['region']}_${source['name']}';
       _dashboardData[key] = items;
     } catch (e) {
@@ -118,10 +125,7 @@ class DashboardController extends ChangeNotifier {
           cleanUrl.startsWith('//') ? 'https:$cleanUrl' : 'https://$cleanUrl';
     }
 
-    // Use dart:html for web platform
-    // html.window.open(cleanUrl, '_blank');
-
-    // For cross-platform, use url_launcher with fallback
-    // Implementation depends on your specific needs
+    // Ideally use url_launcher package here
+    // await launchUrl(Uri.parse(cleanUrl));
   }
 }

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
+import 'package:news_app/data/models/news_source.dart'; // Import for SourceType
 import 'package:news_app/presentation/screens/source_detail_screen.dart';
 
 class InternationalNewsScreen extends StatefulWidget {
@@ -21,7 +22,9 @@ class InternationalNewsScreen extends StatefulWidget {
 class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  final List<Map<String, String>> _arabicSources = [
+  // Defined sources for International News
+  final List<Map<String, String>> _rssSources = [
+    // Arabic Sources
     {
       'name': 'Al Jazeera Arabic',
       'url':
@@ -33,9 +36,8 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     },
     {'name': 'Al Arabiya', 'url': 'https://www.alarabiya.net/feed/rss2/ar.xml'},
     {'name': 'Sky News Arabia', 'url': 'https://www.skynewsarabia.com/rss'},
-  ];
 
-  final List<Map<String, String>> _englishSources = [
+    // English Sources
     {'name': 'BBC', 'url': 'http://feeds.bbci.co.uk/news/rss.xml'},
     {
       'name': 'Reuters',
@@ -54,19 +56,13 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     {'name': 'The Guardian', 'url': 'https://www.theguardian.com/world/rss'},
   ];
 
-  late final List<Map<String, String>> _rssSources = [
-    ..._arabicSources,
-    ..._englishSources
-  ];
-
   final Map<int, List<RssItemModel>> _dashboardData = {};
   bool _isLoading = true;
 
-  // Crypto Palette
+  // Theme Colors
   static const Color _bgColor = Color(0xFF0B0E14);
   static const Color _cardColor = Color(0xFF151A25);
   static const Color _accentOrange = Color(0xFFFF8C00);
-  static const Color _accentGold = Color(0xFFFFD700);
   static const Color _textWhite = Colors.white;
   static const Color _textGrey = Color(0xFF8B95A5);
 
@@ -76,35 +72,47 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     _loadDashboardData();
   }
 
+  /// ✅ OPTIMIZED: Parallel loading with a global safety timeout
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
     _dashboardData.clear();
 
-    final futures = _rssSources.asMap().entries.map((entry) async {
+    // Create a list of fetch tasks
+    final futures = _rssSources.asMap().entries.map((entry) {
       final index = entry.key;
-      final url = entry.value['url']!.trim();
+      final source = entry.value;
+      final url = source['url']!.trim();
 
-      if (url.isEmpty || url.contains('placeholder')) {
-        return {index: <RssItemModel>[]};
-      }
+      return _fetchSourceData(index, url, source['name']!);
+    }).toList();
 
-      try {
-        final items = await _dataSource.fetchRssFeed(url, limit: 3);
-        return {index: items};
-      } catch (e) {
-        debugPrint('Error loading ${entry.value['name']}: $e');
-        return {index: <RssItemModel>[]};
-      }
-    });
-
-    final results = await Future.wait(futures);
-
-    for (var map in results) {
-      _dashboardData.addAll(map);
+    // Wait for all futures with a global timeout (20s max)
+    try {
+      await Future.wait(futures).timeout(const Duration(seconds: 20));
+    } catch (e) {
+      debugPrint('⚠️ International News loading timed out: $e');
     }
 
     if (mounted) {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchSourceData(int index, String url, String name) async {
+    if (url.isEmpty) return;
+    try {
+      // Explicitly pass limit and sourceName for debugging
+      final items =
+          await _dataSource.fetchRssFeed(url, sourceName: name, limit: 3);
+
+      if (mounted && items.isNotEmpty) {
+        // Optional: setState here for progressive loading
+        // setState(() {
+        _dashboardData[index] = items;
+        // });
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading $name: $e');
     }
   }
 
@@ -144,7 +152,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: _accentOrange),
-            onPressed: _loadDashboardData,
+            onPressed: _isLoading ? null : _loadDashboardData,
           ),
         ],
       ),
@@ -153,22 +161,31 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   }
 
   Widget _buildContent() {
-    if (_isLoading) {
+    if (_isLoading && _dashboardData.isEmpty) {
       return Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(_accentOrange),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(_accentOrange),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Connecting to global sources...',
+              style: GoogleFonts.montserrat(color: _textGrey),
+            ),
+          ],
         ),
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Responsive Grid Logic
         int crossAxisCount = 1;
         if (constraints.maxWidth > 1200) {
-          crossAxisCount = 3; // Desktop
+          crossAxisCount = 3;
         } else if (constraints.maxWidth > 800) {
-          crossAxisCount = 2; // Tablet
+          crossAxisCount = 2;
         }
 
         return CustomScrollView(
@@ -180,7 +197,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                   crossAxisCount: crossAxisCount,
                   mainAxisSpacing: 24,
                   crossAxisSpacing: 24,
-                  // FIX: Landscape ratio (1.1) removes empty space
                   childAspectRatio: 1.1,
                 ),
                 delegate: SliverChildBuilderDelegate(
@@ -198,6 +214,8 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                             builder: (context) => SourceDetailScreen(
                               sourceName: source['name']!,
                               sourceUrl: source['url']!.trim(),
+                              sourceType:
+                                  SourceType.rss, // Ensure this enum exists
                             ),
                           ),
                         );
@@ -216,6 +234,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   }
 }
 
+// SourceBlock Widget
 class _SourceBlock extends StatelessWidget {
   final String sourceName;
   final List<RssItemModel> items;
@@ -231,12 +250,11 @@ class _SourceBlock extends StatelessWidget {
     required this.onArticleTap,
   });
 
-  // Palette mixing Crypto theme with International colors
   Color _getAccentColor(int index) {
     final colors = [
-      const Color(0xFFFF8C00), // Crypto Orange
-      const Color(0xFFFFD700), // Crypto Gold
-      const Color(0xFF00A896), // Teal (International feel)
+      const Color(0xFFFF8C00), // Orange
+      const Color(0xFFFFD700), // Gold
+      const Color(0xFF00A896), // Teal
       const Color(0xFF7B61FF), // Purple
       const Color(0xFF00CED1), // Cyan
       const Color(0xFF20B2AA), // Light Sea Green
@@ -354,6 +372,7 @@ class _SourceBlock extends StatelessWidget {
   }
 }
 
+// NewsCard Widget (Added Image Support)
 class _NewsCard extends StatelessWidget {
   final RssItemModel item;
   final Color accentColor;
@@ -407,6 +426,7 @@ class _NewsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isArabic = _containsArabic(item.title);
     final snippet = _getSnippet(item.description);
+    final hasImage = item.imageUrl != null && item.imageUrl!.isNotEmpty;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -457,6 +477,7 @@ class _NewsCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+
               // Content
               Expanded(
                 child: Column(
@@ -475,7 +496,7 @@ class _NewsCard extends StatelessWidget {
                           item.title,
                           style: _getTextStyle(
                               isArabic,
-                              TextStyle(
+                              const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
@@ -492,9 +513,9 @@ class _NewsCard extends StatelessWidget {
                             snippet,
                             style: _getTextStyle(
                                 isArabic,
-                                TextStyle(
+                                const TextStyle(
                                   fontSize: 10,
-                                  color: const Color(0xFF8B95A5),
+                                  color: Color(0xFF8B95A5),
                                   height: 1.2,
                                 )),
                             maxLines: 1,
@@ -511,8 +532,8 @@ class _NewsCard extends StatelessWidget {
                           ? MainAxisAlignment.end
                           : MainAxisAlignment.start,
                       children: [
-                        Icon(Icons.access_time_rounded,
-                            size: 9, color: const Color(0xFF6D7680)),
+                        const Icon(Icons.access_time_rounded,
+                            size: 9, color: Color(0xFF6D7680)),
                         const SizedBox(width: 3),
                         Text(
                           _formatTimeAgo(item.publishedAt),
@@ -530,6 +551,21 @@ class _NewsCard extends StatelessWidget {
                   ],
                 ),
               ),
+
+              // ✅ ADDED: Image Thumbnail support
+              if (hasImage) ...[
+                const SizedBox(width: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.network(
+                    item.imageUrl!,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

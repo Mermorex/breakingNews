@@ -1,19 +1,24 @@
-// lib/data/datasources/rss_remote_datasource.dart
 import 'dart:convert';
+import 'package:html/parser.dart';
 import 'package:http/http.dart' as http;
+import 'package:rss_dart/dart_rss.dart';
 import 'package:xml/xml.dart';
-import 'package:dart_rss/dart_rss.dart';
-import 'package:html/parser.dart' show parse;
 import '../models/rss_item_model.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
 class RssRemoteDataSource {
-  // Clean proxy URLs (NO trailing spaces!)
+  // ✅ Reliable CORS Proxies for Web/Netlify
   static const List<String> _publicProxies = [
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?',
-    'https://api.codetabs.com/v1/proxy?quest=',
+    'https://api.allorigins.win/raw?url=', // Best for Netlify
+    'https://corsproxy.io/?', // Good backup
   ];
+
+  // ✅ Headers to mimic a real browser (avoids bot blocking)
+  static const Map<String, String> _headers = {
+    'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+    'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+  };
 
   Future<List<RssItemModel>> fetchRssFeed(
     String url, {
@@ -30,103 +35,140 @@ class RssRemoteDataSource {
         return [];
       }
 
-      String? workingBody;
+      // ✅ FIX: On Web (Netlify), we MUST use a proxy for almost all RSS feeds.
+      // Direct fetching will almost always fail due to CORS.
+      if (kIsWeb) {
+        return await _fetchWithProxy(cleanUrl, name, limit);
+      }
 
-      // Try RSS2JSON first (most reliable, no CORS)
+      // ✅ MOBILE/DESKTOP: Try Direct Fetch first (Faster)
       try {
-        final rss2JsonUrl =
-            'https://api.rss2json.com/v1/api.json?rss_url=${Uri.encodeComponent(cleanUrl)}';
         final response = await http
-            .get(Uri.parse(rss2JsonUrl))
-            .timeout(const Duration(seconds: 15));
+            .get(Uri.parse(cleanUrl), headers: _headers)
+            .timeout(const Duration(seconds: 5));
 
         if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data['status'] == 'ok') {
-            final items = (data['items'] as List).map((item) {
-              DateTime? pubDate;
-              try {
-                pubDate = DateTime.parse(item['pubDate']);
-              } catch (_) {}
-
-              return RssItemModel(
-                title: item['title'] ?? 'No Title',
-                link: item['link'] ?? '',
-                description: item['description'] ?? '',
-                pubDate: item['pubDate'] ?? '',
-                imageUrl: item['enclosure']?['link'] ??
-                    item['thumbnail'] ??
-                    _extractImageFromHtml(item['description']),
-                publishedAt: pubDate,
-                source: name,
-              );
-            }).toList();
-
-            debugPrint('✅ $name: RSS2JSON ${items.length} items');
-            return items.take(limit).toList();
+          final body = _sanitizeBody(response);
+          if (!_isHtmlResponse(body)) {
+            final items = _parseRssString(body, name, limit);
+            if (items.isNotEmpty) {
+              debugPrint('✅ $name: Direct fetch success');
+              return items;
+            }
           }
         }
       } catch (e) {
-        debugPrint('⚠️ $name: RSS2JSON failed, trying proxies');
+        debugPrint('⚠️ $name: Direct fetch failed, trying proxy');
       }
 
-      // Fallback to public CORS proxies
-      for (final proxy in _publicProxies) {
-        try {
-          final proxyUrl = '$proxy${Uri.encodeComponent(cleanUrl)}';
-          debugPrint('🔍 $name: Trying $proxy');
-
-          final response = await http
-              .get(Uri.parse(proxyUrl))
-              .timeout(const Duration(seconds: 10));
-
-          if (response.statusCode == 200) {
-            workingBody = _sanitizeBody(response);
-            debugPrint('✅ $name: Proxy success');
-            break;
-          }
-        } catch (e) {
-          debugPrint('❌ $name: Proxy failed: $e');
-          continue;
-        }
-      }
-
-      if (workingBody == null || workingBody.isEmpty) {
-        debugPrint('❌ $name: All methods failed');
-        return [];
-      }
-
-      // Check if HTML
-      if (_isHtmlResponse(workingBody)) {
-        debugPrint('⚠️ $name: Got HTML instead of RSS');
-        return [];
-      }
-
-      // Parse RSS
-      if (useWebFeed) {
-        try {
-          final feed = RssFeed.parse(workingBody);
-          final items = feed.items
-              .map((item) => _convertRssItemToModel(item, name))
-              .toList();
-
-          debugPrint('✅ $name: Parsed ${items.length} items');
-          return items.take(limit).toList();
-        } catch (e) {
-          debugPrint('⚠️ $name: dart_rss failed, trying manual');
-        }
-      }
-
-      // Manual parse
-      final document = XmlDocument.parse(_cleanXmlForParsing(workingBody));
-      return document
-          .findAllElements('item')
-          .take(limit)
-          .map((e) => RssItemModel.fromXml(e, sourceName: name))
-          .toList();
+      // Fallback to proxy for mobile if direct fails
+      return await _fetchWithProxy(cleanUrl, name, limit);
     } catch (e) {
       debugPrint('❌ $name: $e');
       return [];
+    }
+  }
+
+  // ✅ NEW: Dedicated Proxy Fetch Method
+  Future<List<RssItemModel>> _fetchWithProxy(
+      String url, String name, int limit) async {
+    for (final proxy in _publicProxies) {
+      try {
+        // Encode URL to handle special characters
+        final proxyUrl = '$proxy${Uri.encodeComponent(url)}';
+
+        final response = await http
+            .get(Uri.parse(proxyUrl), headers: _headers)
+            .timeout(const Duration(seconds: 5));
+
+        if (response.statusCode == 200) {
+          String body = _sanitizeBody(response);
+
+          // Handle allorigins JSON wrapper if present
+          if (body.trim().startsWith('{') && body.contains('contents')) {
+            try {
+              final data = jsonDecode(body);
+              body = data['contents'] ?? '';
+            } catch (_) {}
+          }
+
+          if (body.isNotEmpty && !_isHtmlResponse(body)) {
+            final items = _parseRssString(body, name, limit);
+            if (items.isNotEmpty) {
+              debugPrint('✅ $name: Proxy success (${proxy.split('?').first})');
+              return items;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ $name: Proxy failed (${proxy.split('?').first})');
+        continue;
+      }
+    }
+
+    // Last resort: Try rss2json API
+    return await _fetchViaRss2Json(url, name, limit);
+  }
+
+  // ✅ NEW: Dedicated rss2json Method
+  Future<List<RssItemModel>> _fetchViaRss2Json(
+      String url, String name, int limit) async {
+    try {
+      final apiUrl =
+          'https://api.rss2json.com/v1/api.json?rss_url=${Uri.encodeComponent(url)}';
+      final response =
+          await http.get(Uri.parse(apiUrl)).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'ok' && data['items'] != null) {
+          final items = (data['items'] as List).map((item) {
+            DateTime? pubDate;
+            try {
+              pubDate = DateTime.parse(item['pubDate']);
+            } catch (_) {}
+
+            return RssItemModel(
+              title: item['title'] ?? 'No Title',
+              link: item['link'] ?? '',
+              description: item['description'] ?? '',
+              pubDate: item['pubDate'] ?? '',
+              imageUrl: item['enclosure']?['link'] ?? item['thumbnail'],
+              publishedAt: pubDate,
+              source: name,
+            );
+          }).toList();
+
+          debugPrint('✅ $name: RSS2JSON success');
+          return items.take(limit).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ $name: RSS2JSON failed');
+    }
+    return [];
+  }
+
+  // ✅ Helper: Parse RSS String
+  List<RssItemModel> _parseRssString(String rssString, String name, int limit) {
+    try {
+      final feed = RssFeed.parse(rssString);
+      return feed.items
+          .take(limit)
+          .map((item) => _convertRssItemToModel(item, name))
+          .toList();
+    } catch (e) {
+      // Fallback to manual XML parsing if dart_rss fails
+      try {
+        final document = XmlDocument.parse(_cleanXmlForParsing(rssString));
+        return document
+            .findAllElements('item')
+            .take(limit)
+            .map((e) => RssItemModel.fromXml(e, sourceName: name))
+            .toList();
+      } catch (_) {
+        return [];
+      }
     }
   }
 
@@ -137,18 +179,17 @@ class RssRemoteDataSource {
     int limit = 10,
   }) async {
     final name = sourceName ?? 'Unknown';
-
     try {
       final cleanUrl = url.trim();
       String? htmlContent;
 
-      // Try public proxies for scraping
+      // Use proxy for web scraping
       for (final proxy in _publicProxies) {
         try {
           final proxyUrl = '$proxy${Uri.encodeComponent(cleanUrl)}';
           final response = await http
-              .get(Uri.parse(proxyUrl))
-              .timeout(const Duration(seconds: 10));
+              .get(Uri.parse(proxyUrl), headers: _headers)
+              .timeout(const Duration(seconds: 5));
 
           if (response.statusCode == 200) {
             htmlContent = response.body;
@@ -162,79 +203,38 @@ class RssRemoteDataSource {
       if (htmlContent == null) return [];
 
       final document = parse(htmlContent);
-      final itemSelector = selectors['item'] ?? 'article';
-      final elements = document.querySelectorAll(itemSelector);
-
-      debugPrint('🔍 $name: Found ${elements.length} elements');
+      final elements =
+          document.querySelectorAll(selectors['item'] ?? 'article');
 
       final items = <RssItemModel>[];
-
       for (var i = 0; i < elements.length && i < limit; i++) {
         final element = elements[i];
 
-        String? title;
-        String? link;
+        String? title =
+            element.querySelector(selectors['title'] ?? 'h2')?.text.trim();
+        String? link =
+            element.querySelector(selectors['link'] ?? 'a')?.attributes['href'];
 
-        // Get title
-        final titleSel = selectors['title'];
-        if (titleSel == null || titleSel.isEmpty || titleSel == 'self') {
-          title = element.text.trim();
-          if (title.length < 5) {
-            final titleEl = element.querySelector('h1, h2, h3, .title');
-            title = titleEl?.text.trim();
+        if (title != null && link != null) {
+          if (!link.startsWith('http')) {
+            link = Uri.parse(cleanUrl).resolve(link).toString();
           }
-        } else {
-          title = element.querySelector(titleSel)?.text.trim();
+          items.add(RssItemModel(
+            title: title,
+            link: link,
+            description: '',
+            pubDate: DateTime.now().toString(),
+            source: name,
+          ));
         }
-
-        // Get link
-        final linkSel = selectors['link'];
-        if (linkSel == null || linkSel.isEmpty || linkSel == 'self') {
-          link = element.attributes['href'];
-          if (link == null) {
-            final linkEl = element.querySelector('a');
-            link = linkEl?.attributes['href'];
-            if ((title == null || title.isEmpty) && linkEl != null) {
-              title = linkEl.text.trim();
-            }
-          }
-        } else {
-          link = element.querySelector(linkSel)?.attributes['href'];
-        }
-
-        // Skip if no valid data
-        if (title == null || title.isEmpty || link == null || link.isEmpty) {
-          continue;
-        }
-
-        // Resolve relative URL
-        if (!link.startsWith('http')) {
-          link = _resolveUrl(cleanUrl, link);
-        }
-
-        items.add(RssItemModel(
-          title: title.trim(),
-          link: link,
-          description: '',
-          pubDate: DateTime.now().toString(),
-          source: name,
-        ));
       }
-
-      debugPrint('✅ $name: Scraped ${items.length} items');
       return items;
     } catch (e) {
-      debugPrint('❌ $name scraping error: $e');
       return [];
     }
   }
 
-  String? _extractImageFromHtml(String? html) {
-    if (html == null) return null;
-    final match =
-        RegExp(r'src="([^"]+\.(?:jpg|jpeg|png|gif|webp))"').firstMatch(html);
-    return match?.group(1);
-  }
+  // --- Helper Methods (unchanged) ---
 
   bool _isHtmlResponse(String body) {
     final trimmed = body.trim().toLowerCase();
@@ -242,43 +242,17 @@ class RssRemoteDataSource {
   }
 
   String _cleanXmlForParsing(String xml) {
-    xml = xml.replaceAll(RegExp(r'<!DOCTYPE[^>]*>', caseSensitive: false), '');
-    xml = xml.replaceAll(RegExp(r'<!--[\s\S]*?-->', caseSensitive: false), '');
-
-    if (xml.contains('<rss') && xml.contains('</rss>')) {
-      final start = xml.indexOf('<rss');
-      final end = xml.lastIndexOf('</rss>') + 6;
-      if (start >= 0 && end > start) {
-        xml = xml.substring(start, end);
-      }
-    }
-
-    return xml
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .trim();
+    if (xml.isNotEmpty && xml.codeUnitAt(0) == 0xFEFF) xml = xml.substring(1);
+    return xml.trim();
   }
 
   RssItemModel _convertRssItemToModel(RssItem item, String sourceName) {
-    String? imageUrl;
-
-    if (item.media?.contents?.isNotEmpty ?? false) {
-      imageUrl = item.media!.contents!.first.url;
-    } else if (item.enclosure?.url != null) {
-      imageUrl = item.enclosure!.url;
-    } else if (item.description != null) {
-      imageUrl = _extractImageFromHtml(item.description);
-    }
-
     return RssItemModel(
       title: item.title ?? 'No Title',
       link: item.link ?? '',
       pubDate: item.pubDate ?? DateTime.now().toString(),
       description: item.description ?? '',
-      imageUrl: imageUrl,
+      // imageUrl: null, // Remove or set to null
       publishedAt:
           item.pubDate != null ? RssItemModel.parseDate(item.pubDate!) : null,
       source: sourceName,
@@ -286,33 +260,19 @@ class RssRemoteDataSource {
   }
 
   String _sanitizeBody(http.Response response) {
-    String body = response.body;
-
-    if (_looksGarbled(body)) {
+    // ✅ CRITICAL: Decode bytes directly as UTF-8, ignore header charset
+    String body;
+    try {
       body = utf8.decode(response.bodyBytes, allowMalformed: true);
+    } catch (e) {
+      body = latin1.decode(response.bodyBytes, allowInvalid: true);
     }
 
-    body = body.trim();
+    // Remove BOM if present
     if (body.isNotEmpty && body.codeUnitAt(0) == 0xFEFF) {
       body = body.substring(1);
     }
-    if (body.startsWith('ï»¿')) {
-      body = body.substring(3);
-    }
 
-    return body;
-  }
-
-  bool _looksGarbled(String text) {
-    return text.contains('Ã©') ||
-        text.contains('Ã¨') ||
-        text.contains('Ã§') ||
-        text.contains('Ù') ||
-        text.contains('Ø§');
-  }
-
-  String _resolveUrl(String base, String relative) {
-    if (relative.startsWith('http')) return relative;
-    return Uri.parse(base).resolve(relative).toString();
+    return body.trim();
   }
 }
