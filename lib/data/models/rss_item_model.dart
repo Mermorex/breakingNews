@@ -22,6 +22,29 @@ class RssItemModel {
     this.source,
   });
 
+  // ✅ SIMPLIFIED: Always show relative time, fallback to "Today" if date is wrong
+  String get displayTime {
+    // If no parsed date or date is in the future (wrong), use now
+    final effectiveDate =
+        (publishedAt == null || publishedAt!.isAfter(DateTime.now()))
+            ? DateTime.now()
+            : publishedAt!;
+
+    final now = DateTime.now();
+    final difference = now.difference(effectiveDate);
+
+    // Simple relative time
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+    if (difference.inDays < 1) return '${difference.inHours}h ago';
+    if (difference.inDays < 30) return '${difference.inDays}d ago';
+
+    // Old articles show actual date or fallback
+    return pubDate.isNotEmpty
+        ? pubDate
+        : '${effectiveDate.day}/${effectiveDate.month}/${effectiveDate.year}';
+  }
+
   factory RssItemModel.fromXml(XmlElement element, {String? sourceName}) {
     String getText(String tag) {
       try {

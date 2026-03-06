@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
@@ -8,7 +7,6 @@ import 'package:news_app/presentation/screens/source_detail_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class InternationalNewsTheme {
-  // Exact same constants as Tunisian Screen
   static const Color cryptoDarkBg = Color(0xFF0B0E14);
   static const Color cryptoCardBg = Color(0xFF151A25);
   static const Color cryptoOrange = Color(0xFFFF8C00);
@@ -33,16 +31,19 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
   final List<NewsSource> _rssSources = [
-    // Arabic Sources
+    // ✅ REDDIT ADDED HERE
+    NewsSource(
+      name: ' World News',
+      url: 'https://www.reddit.com/r/worldnews/new.json', // Added /new
+      type: SourceType.jsonApi,
+    ),
+    // Existing Sources
     NewsSource(
         name: 'Al Jazeera Arabic',
         url:
             'https://www.aljazeera.net/aljazeerarss/a7c186be-1baa-4bd4-9d80-a84db769f779/73d0e1b4-532f-45ef-b135-bfdff8b8cab9'),
-
     NewsSource(
         name: 'Sky News Arabia', url: 'https://www.skynewsarabia.com/rss'),
-
-    // English Sources
     NewsSource(name: 'BBC World', url: 'http://feeds.bbci.co.uk/news/rss.xml'),
     NewsSource(
         name: 'Reuters',
@@ -57,8 +58,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   ];
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
-
-  // ✅ Progressive Loading State
   final Set<int> _loadingIndices = {};
   bool _isGlobalLoading = true;
   final Map<String, String> _sourceErrors = {};
@@ -93,7 +92,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
       final items = await _dataSource.fetchRssFeed(
         source.url,
         sourceName: source.name,
-        limit: 3, // 1 Main + 2 Side
+        limit: 3,
       );
 
       if (mounted) {
@@ -133,7 +132,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
         backgroundColor: InternationalNewsTheme.cryptoDarkBg,
         elevation: 0,
         title: Text(
-          'Global Feed', // ✅ Orbitron Font
+          'Global Feed',
           style: GoogleFonts.orbitron(
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -161,10 +160,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   Widget _buildContent() {
     return CustomScrollView(
       slivers: [
-        // 1. Header
         SliverToBoxAdapter(child: _buildStatusHeader()),
-
-        // 2. Sections (Vertical List like Tunisian Screen)
         ..._rssSources.asMap().entries.map((entry) {
           final index = entry.key;
           final source = entry.value;
@@ -179,13 +175,11 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
             hasError: hasError,
           );
         }),
-
         const SliverPadding(padding: EdgeInsets.only(bottom: 60)),
       ],
     );
   }
 
-  // ✅ SAME STATUS HEADER STYLE
   Widget _buildStatusHeader() {
     return Container(
       margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
@@ -261,13 +255,13 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     );
   }
 
-  // ✅ SAME SECTION LAYOUT (Asymmetric)
   Widget _buildSection({
     required NewsSource source,
     required List<RssItemModel> items,
     required bool isLoading,
     required bool hasError,
   }) {
+    final isReddit = source.url.contains('reddit.com');
     final isArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(source.name);
 
     return SliverToBoxAdapter(
@@ -276,7 +270,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Section Header (Same Style)
             Row(
               children: [
                 Container(
@@ -288,7 +281,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                     ]),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Text(isArabic ? '🌍' : '📰',
+                  child: Text(isReddit ? '🔴' : (isArabic ? '🌍' : '📰'),
                       style: const TextStyle(fontSize: 22)),
                 ),
                 const SizedBox(width: 16),
@@ -331,7 +324,8 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                           builder: (context) => SourceDetailScreen(
                             sourceName: source.name,
                             sourceUrl: source.url.trim(),
-                            sourceType: SourceType.rss,
+                            // Pass the type if your DetailScreen supports it
+                            sourceType: source.type,
                           ),
                         ),
                       );
@@ -369,21 +363,17 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
               ],
             ),
             const SizedBox(height: 20),
-
-            // Asymmetric Content Row
             if (isLoading && items.isEmpty)
               _buildLoadingPlaceholder()
             else if (items.isNotEmpty)
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // MAIN STORY (Left - Big)
                   Expanded(
                     flex: 5,
                     child: _buildMainArticleCard(items.first),
                   ),
                   const SizedBox(width: 20),
-                  // SIDE STORIES (Right - Stacked)
                   Expanded(
                     flex: 4,
                     child: Column(
@@ -404,7 +394,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     );
   }
 
-  // ✅ SAME LOADING PLACEHOLDER
   Widget _buildLoadingPlaceholder() {
     return Container(
       height: 340,
@@ -441,11 +430,8 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     );
   }
 
-  // ✅ MAIN CARD (Identical to Tunisian)
   Widget _buildMainArticleCard(RssItemModel article) {
-    final sourceName = article.source ?? 'News';
     final bool hasArabic = _containsArabic(article.title);
-
     return GestureDetector(
       onTap: () => _openArticle(article.link),
       child: Container(
@@ -505,7 +491,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            sourceName.toUpperCase(),
+                            (article.source ?? 'News').toUpperCase(),
                             style: GoogleFonts.montserrat(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -575,7 +561,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     );
   }
 
-  // ✅ SIDE CARD (Identical to Tunisian)
   Widget _buildSideArticleCard(RssItemModel article) {
     final bool hasArabic = _containsArabic(article.title);
     return GestureDetector(
@@ -656,7 +641,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     );
   }
 
-  // --- HELPERS (Identical) ---
   Widget _buildEmptyErrorState(bool hasError) {
     return Container(
       height: 200,

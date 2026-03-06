@@ -56,7 +56,19 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       },
     ),
     NewsSource(
-        name: 'Nawaat', url: 'https://nawaat.org/feed', useWebFeed: true),
+      name: 'rassdtunisia',
+      url: 'https://rassdtunisia.net/category/news',
+      type: SourceType.scrapable,
+      selectors: {
+        'item': 'article, .post, .entry',
+        'title': 'h2.entry-title a, h1.entry-title',
+        'link': 'h2.entry-title a[href], h1 a[href]',
+        'desc': '.entry-summary p, .post-excerpt',
+        'date':
+            '.entry-date, time.entry-date, .published, .posted-on, .byline, .entry-meta',
+        'image': 'img.wp-post-image, .post-thumbnail img',
+      },
+    ),
   ];
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
