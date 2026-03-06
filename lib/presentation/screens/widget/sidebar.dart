@@ -16,6 +16,7 @@ class Sidebar extends StatelessWidget {
     super.key,
     required this.selectedIndex,
     required this.onItemSelected,
+    required bool isCompact,
   });
 
   @override

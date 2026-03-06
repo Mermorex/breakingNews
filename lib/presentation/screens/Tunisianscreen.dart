@@ -5,17 +5,15 @@ import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/presentation/screens/source_detail_screen.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-// Use url_launcher for cross-platform link opening
 import 'package:url_launcher/url_launcher.dart';
 
 class TunisianNewsTheme {
-  static const Color bgColor = Color(0xFF0B0E14);
-  static const Color cardColor = Color(0xFF151A25);
-  static const Color accentOrange = Color(0xFFFF8C00);
-  static const Color accentGold = Color(0xFFFFD700);
-  static const Color textWhite = Colors.white;
-  static const Color textGrey = Color(0xFF8B95A5);
+  // Exact same constants as HomeScreen
+  static const Color cryptoDarkBg = Color(0xFF0B0E14);
+  static const Color cryptoCardBg = Color(0xFF151A25);
+  static const Color cryptoOrange = Color(0xFFFF8C00);
+  static const Color cryptoGold = Color(0xFFFFD700);
+  static const Color textGrey = Color(0xFF6E7681);
 }
 
 class TunisianNewsScreen extends StatefulWidget {
@@ -77,8 +75,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     _loadDashboardData();
   }
 
-  /// ✅ OPTIMIZED: Loads all sources in parallel using Future.wait
-  /// This reduces load time from (N * Time) to (Max Time of 1 source)
   Future<void> _loadDashboardData() async {
     setState(() {
       _isLoading = true;
@@ -87,15 +83,12 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     });
     _dashboardData.clear();
 
-    // Create a list of fetch tasks
     final fetchTasks = _rssSources.asMap().entries.map((entry) {
       final index = entry.key;
       final source = entry.value;
       return _fetchSource(index, source);
     }).toList();
 
-    // Wait for all tasks to complete in parallel
-    // Added global timeout to ensure UI never hangs forever
     try {
       await Future.wait(fetchTasks).timeout(const Duration(seconds: 20));
     } catch (e) {
@@ -121,7 +114,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
           cleanUrl,
           source.selectors!,
           sourceName: source.name,
-          limit: 3,
+          limit: 3, // Limit to 3 to fit the layout perfectly
         );
       } else {
         items = await _dataSource.fetchRssFeed(
@@ -133,8 +126,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       }
 
       if (mounted && items.isNotEmpty) {
-        // Use setState to update the specific key in the map
-        // This might cause minor repaints, but ensures data shows up ASAP
         setState(() {
           _dashboardData[index] = items;
         });
@@ -145,11 +136,8 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     }
   }
 
-  /// ✅ FIXED: Cross-platform link opening using url_launcher
-  /// Works on Web, Android, and iOS without conditional imports
   Future<void> _openArticle(String url) async {
     if (url.isEmpty) return;
-
     String cleanUrl = url.trim();
     if (!cleanUrl.startsWith('http')) {
       cleanUrl = 'https://$cleanUrl';
@@ -184,8 +172,8 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Link copied', style: GoogleFonts.montserrat()),
-        backgroundColor: TunisianNewsTheme.accentOrange,
-        duration: Duration(seconds: 1),
+        backgroundColor: TunisianNewsTheme.cryptoOrange,
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -199,15 +187,17 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: TunisianNewsTheme.bgColor,
+      backgroundColor: TunisianNewsTheme.cryptoDarkBg,
       appBar: AppBar(
-        backgroundColor: TunisianNewsTheme.bgColor,
+        backgroundColor: TunisianNewsTheme.cryptoDarkBg,
         elevation: 0,
         title: Text(
-          'Tunisian News',
-          style: GoogleFonts.montserrat(
+          'Tunisia Feed',
+          style: GoogleFonts.orbitron(
+            // Sci-fi font like Dashboard
             fontWeight: FontWeight.bold,
-            color: TunisianNewsTheme.textWhite,
+            color: Colors.white,
+            letterSpacing: 1.2,
           ),
         ),
         centerTitle: true,
@@ -215,11 +205,12 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
           if (_sourceErrors.isNotEmpty)
             Tooltip(
               message: '${_sourceErrors.length} sources failed',
-              child: Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              child:
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orange),
             ),
           IconButton(
-            icon: Icon(Icons.refresh_rounded,
-                color: TunisianNewsTheme.accentOrange),
+            icon: const Icon(Icons.refresh_rounded,
+                color: TunisianNewsTheme.cryptoOrange),
             onPressed: _isLoading ? null : _loadDashboardData,
             tooltip: 'Refresh',
           ),
@@ -230,348 +221,510 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   Widget _buildContent() {
-    // Initial Loading State
     if (_isLoading && _dashboardData.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(
-              valueColor:
-                  AlwaysStoppedAnimation<Color>(TunisianNewsTheme.accentOrange),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Loading news from ${_rssSources.length} sources...',
-              style: GoogleFonts.montserrat(color: TunisianNewsTheme.textGrey),
-            ),
-          ],
-        ),
-      );
+      return _buildLoadingView();
     }
 
-    // Error State
     if (_errorMessage != null && _dashboardData.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
-            SizedBox(height: 16),
-            Text(
-              _errorMessage!,
-              style: GoogleFonts.montserrat(color: TunisianNewsTheme.textGrey),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _loadDashboardData,
-              icon: Icon(Icons.refresh),
-              label: Text('Retry'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: TunisianNewsTheme.accentOrange,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      );
+      return _buildErrorView();
     }
 
-    // Content Grid
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        int crossAxisCount = 1;
-        double childAspectRatio = 1.1;
+    return CustomScrollView(
+      slivers: [
+        // 1. Top Header (Same style as Dashboard)
+        SliverToBoxAdapter(child: _buildStatusHeader()),
 
-        if (constraints.maxWidth > 1400) {
-          crossAxisCount = 4;
-          childAspectRatio = 1.2;
-        } else if (constraints.maxWidth > 1200) {
-          crossAxisCount = 3;
-          childAspectRatio = 1.1;
-        } else if (constraints.maxWidth > 800) {
-          crossAxisCount = 2;
-          childAspectRatio = 1.0;
-        } else if (constraints.maxWidth > 600) {
-          crossAxisCount = 2;
-          childAspectRatio = 0.9;
-        }
+        // 2. Sections (Same layout as Dashboard)
+        ..._rssSources.asMap().entries.map((entry) {
+          final index = entry.key;
+          final source = entry.value;
+          final items = _dashboardData[index] ?? [];
+          final hasError = _sourceErrors.containsKey(source.name);
 
-        return RefreshIndicator(
-          onRefresh: _loadDashboardData,
-          color: TunisianNewsTheme.accentOrange,
-          backgroundColor: TunisianNewsTheme.cardColor,
-          child: CustomScrollView(
-            physics: AlwaysScrollableScrollPhysics(),
-            slivers: [
-              if (_sourceErrors.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: Container(
-                    margin: EdgeInsets.all(16),
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.warning_amber, color: Colors.orange),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${_sourceErrors.length} sources unavailable due to CORS or network issues',
-                            style: GoogleFonts.montserrat(
-                              color: Colors.orange,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              SliverPadding(
-                padding: const EdgeInsets.all(24),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    mainAxisSpacing: 24,
-                    crossAxisSpacing: 24,
-                    childAspectRatio: childAspectRatio,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final source = _rssSources[index];
-                      final items = _dashboardData[index] ?? [];
-                      final hasError = _sourceErrors.containsKey(source.name);
+          return _buildSection(
+            source: source,
+            items: items,
+            hasError: hasError,
+          );
+        }),
 
-                      return SourceBlock(
-                        sourceName: source.name,
-                        items: items,
-                        sourceIndex: index,
-                        hasError: hasError,
-                        onSeeAll: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SourceDetailScreen(
-                                sourceName: source.name,
-                                sourceUrl: source.url.trim(),
-                                sourceType: source.type,
-                                selectors: source.selectors,
-                              ),
-                            ),
-                          );
-                        },
-                        onArticleTap: _openArticle,
-                        onArticleLongPress: _copyLink,
-                      );
-                    },
-                    childCount: _rssSources.length,
-                  ),
-                ),
-              ),
-              SliverPadding(padding: EdgeInsets.only(bottom: 24)),
-            ],
-          ),
-        );
-      },
+        const SliverPadding(padding: EdgeInsets.only(bottom: 60)),
+      ],
     );
   }
-}
 
-// SourceBlock Widget (Unchanged)
-class SourceBlock extends StatelessWidget {
-  final String sourceName;
-  final List<RssItemModel> items;
-  final int sourceIndex;
-  final bool hasError;
-  final VoidCallback onSeeAll;
-  final Function(String) onArticleTap;
-  final Function(String) onArticleLongPress;
+  // --- WIDGETS ---
 
-  const SourceBlock({
-    super.key,
-    required this.sourceName,
-    required this.items,
-    required this.sourceIndex,
-    this.hasError = false,
-    required this.onSeeAll,
-    required this.onArticleTap,
-    required this.onArticleLongPress,
-  });
-
-  Color _getAccentColor(int index) {
-    final colors = [
-      const Color(0xFFFF8C00),
-      const Color(0xFFFFD700),
-      const Color(0xFFE74C3C),
-      const Color(0xFF3498DB),
-      const Color(0xFF9B59B6),
-      const Color(0xFF006233),
-      const Color(0xFF1ABC9C),
-      const Color(0xFFE67E22),
-    ];
-    return colors[index % colors.length];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final accentColor = _getAccentColor(sourceIndex);
-    final isArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(sourceName);
-    final hasItems = items.isNotEmpty;
-
+  Widget _buildStatusHeader() {
     return Container(
+      margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: TunisianNewsTheme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: hasError
-              ? Colors.red.withOpacity(0.3)
-              : Colors.white.withOpacity(0.05),
+        gradient: const LinearGradient(
+          colors: [
+            TunisianNewsTheme.cryptoOrange,
+            TunisianNewsTheme.cryptoGold
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: Offset(0, 4),
+            color: TunisianNewsTheme.cryptoOrange.withOpacity(0.3),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'TUNISIA AGGREGATOR',
+                  style: GoogleFonts.robotoMono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withOpacity(0.9),
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_rssSources.length} Active Sources',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Row(
               children: [
+                const Icon(Icons.rss_feed, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  '${_dashboardData.length}',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- SECTION BUILDER (Exact copy of HomeScreen logic) ---
+  Widget _buildSection({
+    required NewsSource source,
+    required List<RssItemModel> items,
+    required bool hasError,
+  }) {
+    final isArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(source.name);
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Section Header
+            Row(
+              children: [
                 Container(
-                  width: 4,
-                  height: 20,
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: hasError ? Colors.red : accentColor,
-                    borderRadius: BorderRadius.circular(2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (hasError ? Colors.red : accentColor)
-                            .withOpacity(0.4),
-                        blurRadius: 8,
+                    gradient: const LinearGradient(colors: [
+                      TunisianNewsTheme.cryptoOrange,
+                      TunisianNewsTheme.cryptoGold
+                    ]),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(isArabic ? '🇹🇳' : '📰',
+                      style: const TextStyle(fontSize: 22)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        source.name,
+                        style: (isArabic
+                                ? GoogleFonts.notoKufiArabic()
+                                : GoogleFonts.montserrat())
+                            .copyWith(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
+                      const SizedBox(height: 2),
+                      Container(
+                        height: 2,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [
+                            TunisianNewsTheme.cryptoOrange,
+                            TunisianNewsTheme.cryptoGold
+                          ]),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      )
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    sourceName,
-                    style: (isArabic
-                            ? GoogleFonts.notoKufiArabic()
-                            : GoogleFonts.montserrat())
-                        .copyWith(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: hasError ? Colors.red : Colors.white,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (hasError)
-                  Icon(Icons.error_outline, color: Colors.red, size: 16),
-                if (hasItems && !hasError)
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: onSeeAll,
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: accentColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border:
-                              Border.all(color: accentColor.withOpacity(0.3)),
+                if (items.isNotEmpty && !hasError)
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SourceDetailScreen(
+                            sourceName: source.name,
+                            sourceUrl: source.url.trim(),
+                            sourceType: source.type,
+                            selectors: source.selectors,
+                          ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'View',
-                              style: GoogleFonts.montserrat(
-                                fontSize: 10,
-                                color: accentColor,
-                                fontWeight: FontWeight.w600,
-                              ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: TunisianNewsTheme.cryptoOrange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: TunisianNewsTheme.cryptoOrange
+                                .withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'View All',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: TunisianNewsTheme.cryptoOrange,
                             ),
-                            const SizedBox(width: 4),
-                            Icon(Icons.arrow_forward_rounded,
-                                size: 10, color: accentColor),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(Icons.arrow_forward_rounded,
+                              size: 14, color: TunisianNewsTheme.cryptoOrange),
+                        ],
                       ),
                     ),
                   ),
               ],
             ),
-          ),
-          const Divider(height: 1, color: Color(0x1AFFFFFF)),
-          Expanded(
-            child: !hasItems
-                ? EmptyBlock(
-                    accentColor: hasError ? Colors.red : accentColor,
-                    sourceName: hasError ? 'Failed to load' : sourceName)
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
-                    itemBuilder: (context, i) => NewsCard(
-                      item: items[i],
-                      accentColor: accentColor,
-                      onTap: () => onArticleTap(items[i].link),
-                      onLongPress: () => onArticleLongPress(items[i].link),
+            const SizedBox(height: 20),
+
+            // Asymmetric Content Row
+            if (items.isNotEmpty)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // MAIN STORY (Left - Big)
+                  Expanded(
+                    flex: 5,
+                    child: _buildMainArticleCard(items.first),
+                  ),
+                  const SizedBox(width: 20),
+                  // SIDE STORIES (Right - Stacked)
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      children: [
+                        if (items.length > 1) _buildSideArticleCard(items[1]),
+                        if (items.length > 2) const SizedBox(height: 16),
+                        if (items.length > 2) _buildSideArticleCard(items[2]),
+                      ],
                     ),
                   ),
-          ),
-        ],
+                ],
+              )
+            else
+              _buildEmptyErrorState(hasError),
+          ],
+        ),
       ),
     );
   }
-}
 
-// NewsCard Widget (Unchanged)
-class NewsCard extends StatelessWidget {
-  final RssItemModel item;
-  final Color accentColor;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  // --- MAIN CARD (Identical to HomeScreen) ---
+  Widget _buildMainArticleCard(RssItemModel article) {
+    final sourceName = article.source ?? 'News';
+    final bool hasArabic = _containsArabic(article.title);
 
-  const NewsCard({
-    super.key,
-    required this.item,
-    required this.accentColor,
-    required this.onTap,
-    required this.onLongPress,
-  });
+    return GestureDetector(
+      onTap: () => _openArticle(article.link),
+      child: Container(
+        height: 340, // Fixed height for balance
+        decoration: BoxDecoration(
+          color: TunisianNewsTheme.cryptoCardBg,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+              color: TunisianNewsTheme.cryptoOrange.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: TunisianNewsTheme.cryptoOrange.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            children: [
+              // Left Accent Strip
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 5,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        TunisianNewsTheme.cryptoOrange,
+                        TunisianNewsTheme.cryptoGold.withOpacity(0.5)
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: hasArabic
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      textDirection:
+                          hasArabic ? TextDirection.rtl : TextDirection.ltr,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: TunisianNewsTheme.cryptoOrange
+                                .withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            sourceName.toUpperCase(),
+                            style: GoogleFonts.montserrat(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: TunisianNewsTheme.cryptoOrange,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(Icons.access_time_rounded,
+                            size: 14, color: Colors.white54),
+                        const SizedBox(width: 6),
+                        Text(
+                          _formatTimeAgo(article.publishedAt),
+                          style: GoogleFonts.montserrat(
+                              fontSize: 12, color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Text(
+                      article.title,
+                      style: _getTextStyle(
+                          hasArabic,
+                          const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              height: 1.4)),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: hasArabic ? TextAlign.right : TextAlign.left,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _getSnippet(article.description),
+                      style: _getTextStyle(
+                          hasArabic,
+                          TextStyle(
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.6),
+                              height: 1.5)),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: hasArabic ? TextAlign.right : TextAlign.left,
+                    ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: hasArabic
+                          ? Alignment.centerLeft
+                          : Alignment.centerRight,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color:
+                              TunisianNewsTheme.cryptoOrange.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.arrow_outward_rounded,
+                            color: TunisianNewsTheme.cryptoOrange, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-  String _getSnippet(String? description) {
-    if (description == null || description.isEmpty) return '';
-    final cleanText = description
-        .replaceAll(RegExp(r'<[^>]*>'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    return cleanText.length > 50
-        ? '${cleanText.substring(0, 50)}...'
-        : cleanText;
+  // --- SIDE CARD (Identical to HomeScreen) ---
+  Widget _buildSideArticleCard(RssItemModel article) {
+    final bool hasArabic = _containsArabic(article.title);
+
+    return GestureDetector(
+      onTap: () => _openArticle(article.link),
+      onLongPress: () => _copyLink(article.link),
+      child: Container(
+        height: 162, // (340 - 16 gap) / 2 = 162. Perfectly balanced.
+        decoration: BoxDecoration(
+          color: TunisianNewsTheme.cryptoCardBg,
+          borderRadius: BorderRadius.circular(20),
+          border:
+              Border.all(color: TunisianNewsTheme.cryptoGold.withOpacity(0.1)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              // Top Accent
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 3,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      TunisianNewsTheme.cryptoGold.withOpacity(0.5),
+                      Colors.transparent
+                    ]),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: hasArabic
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _formatTimeAgo(article.publishedAt),
+                      style: GoogleFonts.montserrat(
+                          fontSize: 11, color: TunisianNewsTheme.textGrey),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      article.title,
+                      style: _getTextStyle(
+                          hasArabic,
+                          const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              height: 1.4)),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: hasArabic ? TextAlign.right : TextAlign.left,
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Text(
+                          'Read',
+                          style: GoogleFonts.montserrat(
+                              fontSize: 10,
+                              color: TunisianNewsTheme.cryptoGold
+                                  .withOpacity(0.7)),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_right_alt,
+                            size: 12,
+                            color:
+                                TunisianNewsTheme.cryptoGold.withOpacity(0.7)),
+                      ],
+                    )
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- HELPERS ---
+
+  TextStyle _getTextStyle(bool isArabic, TextStyle style) {
+    if (isArabic) {
+      return GoogleFonts.notoKufiArabic(textStyle: style);
+    } else {
+      return GoogleFonts.montserrat(textStyle: style);
+    }
+  }
+
+  Widget _buildEmptyErrorState(bool hasError) {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        color: TunisianNewsTheme.cryptoCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+            color: (hasError ? Colors.red : Colors.white).withOpacity(0.1)),
+      ),
+      child: Center(
+        child: Text(
+          hasError ? 'Source failed to load' : 'No articles found',
+          style: GoogleFonts.montserrat(color: Colors.white38),
+        ),
+      ),
+    );
   }
 
   bool _containsArabic(String text) {
     if (text.isEmpty) return false;
-    final arabicRegex = RegExp(
-        r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]');
+    final arabicRegex = RegExp(r'[\u0600-\u06FF]');
     return arabicRegex.hasMatch(text);
   }
 
@@ -579,215 +732,69 @@ class NewsCard extends StatelessWidget {
     if (date == null) return 'Just now';
     final now = DateTime.now();
     final diff = now.difference(date);
-
     if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m';
-    if (diff.inDays < 1) return '${diff.inHours}h';
-    if (diff.inDays < 7) return '${diff.inDays}d';
-    return '${date.day}/${date.month}';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isArabic = _containsArabic(item.title);
-    final snippet = _getSnippet(item.description);
-    final hasImage = item.imageUrl != null && item.imageUrl!.isNotEmpty;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12),
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Color(0xFF1C222E),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.03),
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      item.publishedAt?.day.toString() ?? '--',
-                      style: GoogleFonts.montserrat(
-                        color: accentColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                      ),
-                    ),
-                    Text(
-                      _getMonth(item.publishedAt?.month),
-                      style: GoogleFonts.montserrat(
-                        color: accentColor,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 7,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: isArabic
-                      ? CrossAxisAlignment.end
-                      : CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: isArabic
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: (isArabic
-                                  ? GoogleFonts.notoKufiArabic()
-                                  : GoogleFonts.montserrat())
-                              .copyWith(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            height: 1.2,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign:
-                              isArabic ? TextAlign.right : TextAlign.left,
-                        ),
-                        const SizedBox(height: 2),
-                        if (snippet.isNotEmpty)
-                          Text(
-                            snippet,
-                            style: (isArabic
-                                    ? GoogleFonts.notoKufiArabic()
-                                    : GoogleFonts.montserrat())
-                                .copyWith(
-                              fontSize: 10,
-                              color: const Color(0xFF8B95A5),
-                              height: 1.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign:
-                                isArabic ? TextAlign.right : TextAlign.left,
-                          ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: isArabic
-                          ? MainAxisAlignment.end
-                          : MainAxisAlignment.start,
-                      children: [
-                        Icon(Icons.access_time_rounded,
-                            size: 9, color: Color(0xFF6D7680)),
-                        const SizedBox(width: 3),
-                        Text(
-                          _formatTimeAgo(item.publishedAt),
-                          style: GoogleFonts.montserrat(
-                            fontSize: 9,
-                            color: Color(0xFF6D7680),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(Icons.open_in_new,
-                            size: 9, color: accentColor.withOpacity(0.8)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (hasImage) ...[
-                const SizedBox(width: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.network(
-                    item.imageUrl!,
-                    width: 40,
-                    height: 40,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => SizedBox.shrink(),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
+  String _getSnippet(String? description) {
+    if (description == null || description.isEmpty) return '';
+    return description
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
-  String _getMonth(int? month) {
-    if (month == null) return '';
-    const months = [
-      'JAN',
-      'FEB',
-      'MAR',
-      'APR',
-      'MAY',
-      'JUN',
-      'JUL',
-      'AUG',
-      'SEP',
-      'OCT',
-      'NOV',
-      'DEC'
-    ];
-    return months[month - 1];
-  }
-}
-
-class EmptyBlock extends StatelessWidget {
-  final Color accentColor;
-  final String sourceName;
-
-  const EmptyBlock({
-    super.key,
-    required this.accentColor,
-    required this.sourceName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildLoadingView() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.rss_feed_outlined,
-              size: 32, color: accentColor.withOpacity(0.3)),
-          const SizedBox(height: 8),
-          Text(
-            'No updates',
-            style: GoogleFonts.montserrat(
-              fontSize: 12,
-              color: Color(0xFF8B95A5),
+          Container(
+            width: 60,
+            height: 60,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: TunisianNewsTheme.cryptoOrange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(TunisianNewsTheme.cryptoOrange),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 24),
           Text(
-            sourceName,
+            'Aggregating Sources...',
             style: GoogleFonts.montserrat(
-              fontSize: 10,
-              color: Color(0xFF6D7680),
+                fontSize: 14, color: Colors.white54, letterSpacing: 1.2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+          const SizedBox(height: 16),
+          Text(_errorMessage!,
+              style: GoogleFonts.montserrat(color: Colors.white54),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _loadDashboardData,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TunisianNewsTheme.cryptoOrange,
+              foregroundColor: Colors.white,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

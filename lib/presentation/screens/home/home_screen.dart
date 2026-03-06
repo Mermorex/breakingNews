@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return const AlgeriaNewsScreen(isEmbedded: true);
       case 5:
         return const InternationalNewsScreen(isEmbedded: true);
-      case 6: // <--- THIS IS THE KEY ADDITION
+      case 6:
         return const AIChatScreen();
       default:
         return _buildDashboardView();
@@ -120,14 +120,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return 'Algerian News';
       case 5:
         return 'International News';
-      case 6: // <--- THIS IS THE KEY ADDITION
+      case 6:
         return 'AI News Assistant';
       default:
         return 'AI RSS Reader';
     }
   }
 
-  // Crypto Tech Colors
+  // --- THEME CONSTANTS ---
   static const Color cryptoDarkBg = Color(0xFF0B0E14);
   static const Color cryptoCardBg = Color(0xFF151A25);
   static const Color cryptoOrange = Color(0xFFFF8C00);
@@ -138,17 +138,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Theme(
       data: AppTheme.dashboardTheme,
       child: Scaffold(
-        // FIX: Force Dark Background on Scaffold
         backgroundColor: cryptoDarkBg,
         body: Row(
           children: [
             Sidebar(
               selectedIndex: _controller.selectedIndex,
               onItemSelected: _handleNavigation,
+              isCompact: false,
             ),
             Expanded(
               child: Container(
-                // FIX: Force Dark Background on Main Container
                 color: cryptoDarkBg,
                 child: Column(
                   children: [
@@ -177,170 +176,99 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  // --- DASHBOARD LAYOUT ---
   Widget _buildDashboardView() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth - 64;
-        const cardMinWidth = 280.0;
-        const cardMaxWidth = 400.0;
-        const gap = 16.0;
-
-        final cardsCount = 3;
-        final totalGap = gap * (cardsCount - 1);
-        final cardWidth = ((availableWidth - totalGap) / cardsCount)
-            .clamp(cardMinWidth, cardMaxWidth);
-
-        return CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _buildHeroStats()),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  const SizedBox(height: 40),
-                  _buildRegionRow(
-                    emoji: '🇹🇳',
-                    title: 'Tunisian News',
-                    subtitle: 'Latest from Tunisia',
-                    // Use Crypto Glow Colors
-                    articles:
-                        _controller.tunisianFeaturedArticles.take(3).toList(),
-                    onViewAll: () => _handleNavigation(1),
-                    cardWidth: cardWidth,
-                    gap: gap,
-                  ),
-                  const SizedBox(height: 40),
-                  _buildRegionRow(
-                    emoji: '🇫🇷',
-                    title: 'France News',
-                    subtitle: 'Latest from France',
-                    articles:
-                        _controller.frenchFeaturedArticles.take(3).toList(),
-                    onViewAll: () => _handleNavigation(2),
-                    cardWidth: cardWidth,
-                    gap: gap,
-                  ),
-                  const SizedBox(height: 40),
-                  _buildRegionRow(
-                    emoji: '🇲🇦',
-                    title: 'Moroccan News',
-                    subtitle: 'Le360, Hespress & more',
-                    articles:
-                        _controller.moroccanFeaturedArticles.take(3).toList(),
-                    onViewAll: () => _handleNavigation(3),
-                    cardWidth: cardWidth,
-                    gap: gap,
-                  ),
-                  const SizedBox(height: 40),
-                  _buildRegionRow(
-                    emoji: '🇩🇿',
-                    title: 'Algerian News',
-                    subtitle: 'TSA, El Watan & more',
-                    articles:
-                        _controller.algerianFeaturedArticles.take(3).toList(),
-                    onViewAll: () => _handleNavigation(4),
-                    cardWidth: cardWidth,
-                    gap: gap,
-                  ),
-                  const SizedBox(height: 40),
-                  _buildRegionRow(
-                    emoji: '🌍',
-                    title: 'International',
-                    subtitle: 'Al Jazeera, BBC, Reuters',
-                    articles: _controller.internationalFeaturedArticles
-                        .take(3)
-                        .toList(),
-                    onViewAll: () => _handleNavigation(5),
-                    cardWidth: cardWidth,
-                    gap: gap,
-                  ),
-                  const SizedBox(height: 48),
-                ]),
-              ),
-            ),
-          ],
-        );
-      },
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(child: _buildCompactStatsHeader()),
+        _buildSection(
+          emoji: '🇹🇳',
+          title: 'Tunisia Feed',
+          articles: _controller.tunisianFeaturedArticles,
+          onViewAll: () => _handleNavigation(1),
+        ),
+        _buildSection(
+          emoji: '🇫🇷',
+          title: 'France Feed',
+          articles: _controller.frenchFeaturedArticles,
+          onViewAll: () => _handleNavigation(2),
+        ),
+        _buildSection(
+          emoji: '🇲🇦',
+          title: 'Morocco Feed',
+          articles: _controller.moroccanFeaturedArticles,
+          onViewAll: () => _handleNavigation(3),
+        ),
+        _buildSection(
+          emoji: '🇩🇿',
+          title: 'Algeria Feed',
+          articles: _controller.algerianFeaturedArticles,
+          onViewAll: () => _handleNavigation(4),
+        ),
+        _buildSection(
+          emoji: '🌍',
+          title: 'International Feed',
+          articles: _controller.internationalFeaturedArticles,
+          onViewAll: () => _handleNavigation(5),
+        ),
+        const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+      ],
     );
   }
 
-  Widget _buildHeroStats() {
+  // --- HEADER ---
+  Widget _buildCompactStatsHeader() {
     return Container(
-      margin: const EdgeInsets.all(32),
-      padding: const EdgeInsets.all(24),
-      // Crypto Gradient: Orange to Gold
+      margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFF8C00), // Dark Orange
-            Color(0xFFFFD700), // Gold
-          ],
+          colors: [cryptoOrange, cryptoGold],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        // Intense Glow for Hero
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFF8C00).withOpacity(0.4),
-            blurRadius: 40,
+            color: cryptoOrange.withOpacity(0.3),
+            blurRadius: 30,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'News Overview',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.9),
-                      letterSpacing: 1.0, // Tech feel
-                    ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'LIVE FEED',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withOpacity(0.9),
+                    letterSpacing: 2,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_controller.totalArticles} Articles',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_controller.totalArticles} Articles',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
           Row(
             children: [
               _buildQuickStat('🇹🇳', _controller.tunisianCount),
-              const SizedBox(width: 12),
               _buildQuickStat('🇫🇷', _controller.frenchCount),
-              const SizedBox(width: 12),
               _buildQuickStat('🇲🇦', _controller.moroccanCount),
-              const SizedBox(width: 12),
               _buildQuickStat('🇩🇿', _controller.algerianCount),
-              const SizedBox(width: 12),
-              _buildQuickStat('🌍', _controller.internationalCount),
             ],
           ),
         ],
@@ -349,385 +277,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildQuickStat(String emoji, int count) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-          ),
-        ),
-        child: Column(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 20)),
-            const SizedBox(height: 4),
-            Text(
-              count.toString(),
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRegionRow({
-    required String emoji,
-    required String title,
-    required String subtitle,
-    required List<RssItemModel> articles,
-    required VoidCallback onViewAll,
-    required double cardWidth,
-    required double gap,
-  }) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  // Crypto Glow Border for Header Icon
-                  gradient:
-                      const LinearGradient(colors: [cryptoOrange, cryptoGold]),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: cryptoOrange.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  emoji,
-                  style: const TextStyle(fontSize: 24),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.montserrat(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.montserrat(
-                        fontSize: 13,
-                        color: Colors.white54,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _buildViewAllButton(onViewAll),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        SizedBox(
-          height: 220,
-          child: articles.isEmpty
-              ? _buildEmptyState()
-              : Row(
-                  children: [
-                    for (int i = 0; i < articles.length; i++) ...[
-                      Expanded(
-                        child: _buildArticleCard(
-                          articles[i],
-                          cardWidth: double.infinity,
-                        ),
-                      ),
-                      if (i < articles.length - 1) SizedBox(width: gap),
-                    ],
-                  ],
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildViewAllButton(VoidCallback onTap) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: cryptoOrange.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: cryptoOrange.withOpacity(0.4),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'View All',
-                style: GoogleFonts.montserrat(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: cryptoOrange,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 16,
-                color: cryptoOrange,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  TextStyle _getTextStyle(bool isArabic, TextStyle style) {
-    if (isArabic) {
-      return GoogleFonts.notoKufiArabic(textStyle: style);
-    } else {
-      return GoogleFonts.montserrat(textStyle: style);
-    }
-  }
-
-  Widget _buildArticleCard(
-    RssItemModel article, {
-    double? cardWidth,
-  }) {
-    final sourceName = _articleSourceMap[article] ?? 'News';
-    final bool hasArabic =
-        _containsArabic(article.title) || _containsArabic(article.description);
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () async {
-          final Uri url = Uri.parse(article.link);
-          if (await canLaunchUrl(url)) {
-            await launchUrl(
-              url,
-              mode: LaunchMode.externalApplication,
-              webOnlyWindowName: '_blank',
-            );
-          }
-        },
-        child: Container(
-          width: cardWidth,
-          height: 220,
-          // Dark Crypto Card Style
-          decoration: BoxDecoration(
-            color: cryptoCardBg,
-            borderRadius: BorderRadius.circular(20),
-            // Glowing Border
-            border: Border.all(
-              color: cryptoOrange.withOpacity(0.2),
-              width: 1,
-            ),
-            // Subtle Glow Shadow
-            boxShadow: [
-              BoxShadow(
-                color: cryptoOrange.withOpacity(0.05),
-                blurRadius: 15,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: flutter.Directionality(
-              textDirection: hasArabic
-                  ? flutter.TextDirection.rtl
-                  : flutter.TextDirection.ltr,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Left Accent Strip (Orange Glow)
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 4,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            cryptoOrange,
-                            cryptoGold.withOpacity(0.5),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: hasArabic
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          textDirection: flutter.TextDirection.ltr,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: cryptoOrange.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                sourceName,
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: cryptoOrange,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const Spacer(),
-                            Icon(
-                              Icons.access_time_rounded,
-                              size: 12,
-                              color: Colors.white54,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatTimeAgo(article.publishedAt),
-                              style: _getTextStyle(
-                                  hasArabic,
-                                  TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.white54,
-                                  )),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Expanded(
-                          child: Text(
-                            article.title,
-                            style: _getTextStyle(
-                                hasArabic,
-                                TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.4,
-                                  color: Colors.white,
-                                )),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign:
-                                hasArabic ? TextAlign.right : TextAlign.left,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          textDirection: flutter.TextDirection.ltr,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _getSnippet(article.description),
-                                style: _getTextStyle(
-                                    hasArabic,
-                                    TextStyle(
-                                      fontSize: 12,
-                                      height: 1.3,
-                                      color: Colors.white60,
-                                    )),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: hasArabic
-                                    ? TextAlign.right
-                                    : TextAlign.left,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: cryptoOrange.withOpacity(0.15),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.arrow_outward_rounded,
-                                size: 16,
-                                color: cryptoOrange,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  bool _containsArabic(String text) {
-    if (text.isEmpty) return false;
-    final arabicRegex = RegExp(
-        r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]');
-    return arabicRegex.hasMatch(text);
-  }
-
-  Widget _buildEmptyState() {
     return Container(
-      width: double.infinity,
+      margin: const EdgeInsets.only(left: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: cryptoCardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: cryptoOrange.withOpacity(0.2),
-          style: BorderStyle.solid,
-        ),
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          Icon(
-            Icons.rss_feed_outlined,
-            size: 48,
-            color: cryptoOrange.withOpacity(0.3),
-          ),
-          const SizedBox(height: 12),
+          Text(emoji, style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
           Text(
-            'No recent articles',
+            count.toString(),
             style: GoogleFonts.montserrat(
-              color: Colors.white54,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
               fontSize: 14,
             ),
           ),
@@ -736,11 +302,404 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  // --- SECTION BUILDER ---
+  Widget _buildSection({
+    required String emoji,
+    required String title,
+    required List<RssItemModel> articles,
+    required VoidCallback onViewAll,
+  }) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [cryptoOrange, cryptoGold]),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.montserrat(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        height: 2,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                              colors: [cryptoOrange, cryptoGold]),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+                _buildViewAllButton(onViewAll),
+              ],
+            ),
+            const SizedBox(height: 20),
+            if (articles.isNotEmpty)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: _buildMainArticleCard(articles.first),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      children: [
+                        if (articles.length > 1)
+                          _buildSideArticleCard(articles[1]),
+                        if (articles.length > 2) const SizedBox(height: 16),
+                        if (articles.length > 2)
+                          _buildSideArticleCard(articles[2]),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            else
+              _buildEmptyState(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewAllButton(VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: cryptoOrange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: cryptoOrange.withOpacity(0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'View All',
+                style: GoogleFonts.montserrat(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: cryptoOrange,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(Icons.arrow_forward_rounded, size: 14, color: cryptoOrange),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- FONT HELPER ---
+  TextStyle _getTextStyle(bool isArabic, TextStyle style) {
+    if (isArabic) {
+      return GoogleFonts.notoKufiArabic(textStyle: style);
+    } else {
+      return GoogleFonts.montserrat(textStyle: style);
+    }
+  }
+
+  // --- MAIN CARD ---
+  Widget _buildMainArticleCard(RssItemModel article) {
+    final sourceName = _articleSourceMap[article] ?? 'News';
+    final bool hasArabic =
+        _containsArabic(article.title) || _containsArabic(article.description);
+
+    return GestureDetector(
+      onTap: () => _launchUrl(article.link),
+      child: Container(
+        height: 320,
+        decoration: BoxDecoration(
+          color: cryptoCardBg,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: cryptoOrange.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: cryptoOrange.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 5,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [cryptoOrange, cryptoGold.withOpacity(0.5)],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: flutter.Directionality(
+                  textDirection: hasArabic
+                      ? flutter.TextDirection.rtl
+                      : flutter.TextDirection.ltr,
+                  child: Column(
+                    crossAxisAlignment: hasArabic
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        textDirection:
+                            flutter.TextDirection.ltr, // Keep UI elements LTR
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: cryptoOrange.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              sourceName.toUpperCase(),
+                              style: GoogleFonts.montserrat(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: cryptoOrange,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(Icons.access_time_rounded,
+                              size: 14, color: Colors.white54),
+                          const SizedBox(width: 6),
+                          Text(
+                            _formatTimeAgo(article.publishedAt),
+                            style: GoogleFonts.montserrat(
+                                fontSize: 12, color: Colors.white54),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      // Title with Arabic support
+                      Text(
+                        article.title,
+                        style: _getTextStyle(
+                          hasArabic,
+                          const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.4,
+                          ),
+                        ),
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: hasArabic ? TextAlign.right : TextAlign.left,
+                      ),
+                      const SizedBox(height: 12),
+                      // Description with Arabic support
+                      Text(
+                        _getSnippet(article.description),
+                        style: _getTextStyle(
+                          hasArabic,
+                          TextStyle(
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.6),
+                            height: 1.5,
+                          ),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: hasArabic ? TextAlign.right : TextAlign.left,
+                      ),
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: hasArabic
+                            ? Alignment.centerLeft
+                            : Alignment.centerRight,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: cryptoOrange.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.arrow_outward_rounded,
+                              color: cryptoOrange, size: 18),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- SIDE CARD ---
+  Widget _buildSideArticleCard(RssItemModel article) {
+    final sourceName = _articleSourceMap[article] ?? 'News';
+    final bool hasArabic = _containsArabic(article.title);
+
+    return GestureDetector(
+      onTap: () => _launchUrl(article.link),
+      child: Container(
+        height: 152,
+        decoration: BoxDecoration(
+          color: cryptoCardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: cryptoGold.withOpacity(0.1)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 3,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      cryptoGold.withOpacity(0.5),
+                      Colors.transparent
+                    ]),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: flutter.Directionality(
+                  textDirection: hasArabic
+                      ? flutter.TextDirection.rtl
+                      : flutter.TextDirection.ltr,
+                  child: Column(
+                    crossAxisAlignment: hasArabic
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sourceName.toUpperCase(),
+                        style: GoogleFonts.montserrat(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: cryptoGold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // Title with Arabic support
+                      Text(
+                        article.title,
+                        style: _getTextStyle(
+                          hasArabic,
+                          const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            height: 1.4,
+                          ),
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: hasArabic ? TextAlign.right : TextAlign.left,
+                      ),
+                      const Spacer(),
+                      Row(
+                        textDirection: flutter.TextDirection.ltr,
+                        children: [
+                          Text(
+                            _formatTimeAgo(article.publishedAt),
+                            style: GoogleFonts.montserrat(
+                                fontSize: 11, color: Colors.white38),
+                          ),
+                          const Spacer(),
+                          Icon(Icons.arrow_right_alt,
+                              size: 16, color: cryptoGold.withOpacity(0.5)),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- UTILS ---
+
+  Future<void> _launchUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  bool _containsArabic(String text) {
+    if (text.isEmpty) return false;
+    final arabicRegex = RegExp(r'[\u0600-\u06FF]');
+    return arabicRegex.hasMatch(text);
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        color: cryptoCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cryptoOrange.withOpacity(0.1)),
+      ),
+      child: Center(
+        child: Text(
+          'No articles found',
+          style: GoogleFonts.montserrat(color: Colors.white38),
+        ),
+      ),
+    );
+  }
+
   String _formatTimeAgo(DateTime? date) {
     if (date == null) return 'Just now';
     final now = DateTime.now();
     final diff = now.difference(date);
-
     if (diff.inMinutes < 1) return 'Just now';
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
     if (diff.inDays < 1) return '${diff.inHours}h ago';
@@ -750,11 +709,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   String _getSnippet(String? description) {
     if (description == null || description.isEmpty) return '';
-    final clean = description
+    return description
         .replaceAll(RegExp(r'<[^>]*>'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    return clean.length > 80 ? '${clean.substring(0, 80)}...' : clean;
   }
 }
 
@@ -768,15 +726,15 @@ class _LoadingView extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 80,
-            height: 80,
-            padding: const EdgeInsets.all(20),
+            width: 60,
+            height: 60,
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: const Color(0xFFFF8C00).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: const CircularProgressIndicator(
-              strokeWidth: 3,
+              strokeWidth: 2,
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF8C00)),
             ),
           ),
@@ -784,17 +742,9 @@ class _LoadingView extends StatelessWidget {
           Text(
             'Curating your news...',
             style: GoogleFonts.montserrat(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w600,
               color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Gathering latest stories from around the world',
-            style: GoogleFonts.montserrat(
-              fontSize: 14,
-              color: Colors.white54,
             ),
           ),
         ],
