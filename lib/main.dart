@@ -11,7 +11,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AI RSS Reader',
+      title: 'Breaking News',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

@@ -98,6 +98,7 @@ class Sidebar extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       children: [
+        // Index 0: Dashboard
         _NavItem(
           icon: Icons.dashboard_rounded,
           label: 'Dashboard',
@@ -105,6 +106,8 @@ class Sidebar extends StatelessWidget {
           onTap: () => onItemSelected(0),
         ),
         const SizedBox(height: 8),
+
+        // Index 1: Tunisian News
         _NavItem(
           icon: Icons.flag_rounded,
           label: 'Tunisian News',
@@ -115,59 +118,52 @@ class Sidebar extends StatelessWidget {
           onTap: () => onItemSelected(1),
         ),
         const SizedBox(height: 8),
-        _NavItem(
-          icon: Icons.flag_rounded,
-          label: 'France News',
-          badge: 'FR',
-          badgeColor: const Color(0xFF3498DB).withOpacity(0.2),
-          badgeTextColor: const Color(0xFF3498DB),
-          isSelected: selectedIndex == 2,
-          onTap: () => onItemSelected(2),
-        ),
-        const SizedBox(height: 8),
+
+        // Index 2: Moroccan News (Fixed)
         _NavItem(
           icon: Icons.flag_rounded,
           label: 'Moroccan News',
           badge: 'MA',
           badgeColor: const Color(0xFF006233).withOpacity(0.2),
           badgeTextColor: const Color(0xFF006233),
-          isSelected: selectedIndex == 3,
-          onTap: () => onItemSelected(3),
+          isSelected: selectedIndex == 2, // Changed from 3 to 2
+          onTap: () => onItemSelected(2), // Changed from 3 to 2
         ),
         const SizedBox(height: 8),
+
+        // Index 3: Algerian News (Fixed)
         _NavItem(
           icon: Icons.flag_rounded,
           label: 'Algerian News',
           badge: 'DZ',
           badgeColor: const Color(0xFF008000).withOpacity(0.2),
           badgeTextColor: const Color(0xFF008000),
-          isSelected: selectedIndex == 4,
-          onTap: () => onItemSelected(4),
+          isSelected: selectedIndex == 3, // Changed from 4 to 3
+          onTap: () => onItemSelected(3), // Changed from 4 to 3
         ),
         const SizedBox(height: 8),
+
+        // Index 4: Iranian News (Fixed)
+        _NavItem(
+          icon: Icons.flag_rounded,
+          label: 'Iranian News',
+          badge: 'IR',
+          badgeColor: const Color(0xFF4CAF50).withOpacity(0.2),
+          badgeTextColor: const Color(0xFF4CAF50),
+          isSelected: selectedIndex == 4, // Changed from 5 to 4
+          onTap: () => onItemSelected(4), // Changed from 5 to 4
+        ),
+        const SizedBox(height: 8),
+
+        // Index 5: International (Fixed)
         _NavItem(
           icon: Icons.language_rounded,
           label: 'International',
           badge: 'INT',
           badgeColor: const Color(0xFF9B59B6).withOpacity(0.2),
           badgeTextColor: const Color(0xFF9B59B6),
-          isSelected: selectedIndex == 5,
-          onTap: () => onItemSelected(5),
-        ),
-
-        // ================= NEW AI CHAT ITEM =================
-        const SizedBox(height: 16), // Extra spacing before AI section
-        Divider(color: Colors.white.withOpacity(0.1)),
-        const SizedBox(height: 8),
-        _NavItem(
-          icon: Icons.auto_awesome, // Magic/AI Icon
-          label: 'AI Chat',
-          badge: 'AI',
-          badgeColor: const Color(0xFFFF00FF)
-              .withOpacity(0.2), // Neon Purple/Pink for AI
-          badgeTextColor: const Color(0xFFFF00FF),
-          isSelected: selectedIndex == 6,
-          onTap: () => onItemSelected(6),
+          isSelected: selectedIndex == 5, // Changed from 6 to 5
+          onTap: () => onItemSelected(5), // Changed from 6 to 5
         ),
       ],
     );

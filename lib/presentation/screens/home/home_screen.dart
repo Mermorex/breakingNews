@@ -3,10 +3,10 @@ import 'package:flutter/material.dart' as flutter;
 import 'package:flutter/material.dart' hide TextDirection;
 import 'package:intl/intl.dart';
 import 'package:news_app/presentation/screens/ai_chat_screen.dart';
+import 'package:news_app/presentation/screens/irannews_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:news_app/presentation/screens/Tunisianscreen.dart';
-import 'package:news_app/presentation/screens/francescreen.dart';
 import 'package:news_app/presentation/screens/international_screen.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/rss_item_model.dart';
@@ -82,6 +82,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  // ✅ UPDATED: Navigation Logic
   Widget _buildCurrentView() {
     switch (_controller.selectedIndex) {
       case 0:
@@ -91,16 +92,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       case 1:
         return const TunisianNewsScreen(isEmbedded: true);
-      case 2:
-        return const FranceNewsScreen(isEmbedded: true);
-      case 3:
+      case 2: // Was 3
         return const MoroccoNewsScreen(isEmbedded: true);
-      case 4:
+      case 3: // Was 4
         return const AlgeriaNewsScreen(isEmbedded: true);
-      case 5:
+      case 4: // Was 5
+        return const IranianNewsScreen(isEmbedded: true);
+      case 5: // Was 6
         return const InternationalNewsScreen(isEmbedded: true);
-      case 6:
-        return const AIChatScreen();
       default:
         return _buildDashboardView();
     }
@@ -113,15 +112,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case 1:
         return 'Tunisian News';
       case 2:
-        return 'France News';
-      case 3:
         return 'Moroccan News';
-      case 4:
+      case 3:
         return 'Algerian News';
+      case 4:
+        return 'Iranian News';
       case 5:
         return 'International News';
-      case 6:
-        return 'AI News Assistant';
       default:
         return 'AI RSS Reader';
     }
@@ -188,12 +185,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           onViewAll: () => _handleNavigation(1),
         ),
         _buildSection(
-          emoji: '🇫🇷',
-          title: 'France Feed',
-          articles: _controller.frenchFeaturedArticles,
-          onViewAll: () => _handleNavigation(2),
-        ),
-        _buildSection(
           emoji: '🇲🇦',
           title: 'Morocco Feed',
           articles: _controller.moroccanFeaturedArticles,
@@ -205,11 +196,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           articles: _controller.algerianFeaturedArticles,
           onViewAll: () => _handleNavigation(4),
         ),
+        // ✅ NEW: Iran Section
+        _buildSection(
+          emoji: '🇮🇷',
+          title: 'Iran Feed',
+          articles: _controller
+              .iranianFeaturedArticles, // Ensure this exists in Controller
+          onViewAll: () => _handleNavigation(5),
+        ),
         _buildSection(
           emoji: '🌍',
           title: 'International Feed',
           articles: _controller.internationalFeaturedArticles,
-          onViewAll: () => _handleNavigation(5),
+          onViewAll: () => _handleNavigation(6), // Updated Index
         ),
         const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
       ],
@@ -266,9 +265,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Row(
             children: [
               _buildQuickStat('🇹🇳', _controller.tunisianCount),
-              _buildQuickStat('🇫🇷', _controller.frenchCount),
               _buildQuickStat('🇲🇦', _controller.moroccanCount),
               _buildQuickStat('🇩🇿', _controller.algerianCount),
+              _buildQuickStat('🇮🇷', _controller.iranianCount),
             ],
           ),
         ],

@@ -11,18 +11,6 @@ class DashboardConstants {
     {'name': 'وزارة الداخلية', 'url': 'https://www.interieur.gov.tn/ar/feed'},
   ];
 
-  static const List<Map<String, String>> frenchFeatured = [
-    {'name': 'Le Monde', 'url': 'https://www.lemonde.fr/rss/une.xml'},
-    {
-      'name': 'Le Figaro',
-      'url': 'https://www.lefigaro.fr/rss/figaro_actualites.xml'
-    },
-    {
-      'name': 'Libération',
-      'url': 'https://www.liberation.fr/arc/outboundfeeds/rss-all/'
-    },
-  ];
-
   static const List<Map<String, String>> moroccanFeatured = [
     {'name': 'Le360', 'url': 'https://fr.le360.ma/rss'},
     {'name': 'Hespress', 'url': 'https://www.hespress.com/feed'},
@@ -57,5 +45,14 @@ class DashboardConstants {
       'url':
           'https://news.google.com/rss/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen'
     },
+  ];
+  static const List<Map<String, String>> iranianFeatured = [
+    {'name': 'Mehr News', 'url': 'https://en.mehrnews.com/rss'},
+    {
+      'name': 'Tasnim News',
+      'url': 'https://www.tasnimnews.ir/en/rss/feed/0/0/8/1/TopStories'
+    },
+    {'name': 'Tehran Times', 'url': 'https://www.tehrantimes.com/rss'},
+    {'name': 'Fars News', 'url': 'https://www.farsnews.ir/en/rss'},
   ];
 }

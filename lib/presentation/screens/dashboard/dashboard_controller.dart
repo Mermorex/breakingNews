@@ -26,8 +26,6 @@ class DashboardController extends ChangeNotifier {
   // Featured sources from constants
   List<Map<String, String>> get tunisianFeatured =>
       DashboardConstants.tunisianFeatured;
-  List<Map<String, String>> get frenchFeatured =>
-      DashboardConstants.frenchFeatured;
   List<Map<String, String>> get moroccanFeatured =>
       DashboardConstants.moroccanFeatured;
   List<Map<String, String>> get internationalFeatured =>
@@ -75,7 +73,6 @@ class DashboardController extends ChangeNotifier {
 
     final allSources = [
       ...tunisianFeatured.map((s) => {...s, 'region': 'TN'}),
-      ...frenchFeatured.map((s) => {...s, 'region': 'FR'}),
       ...moroccanFeatured.map((s) => {...s, 'region': 'MA'}),
       ...internationalFeatured.map((s) => {...s, 'region': 'INT'}),
       ...algerianFeatured.map((s) => {...s, 'region': 'DZ'}),

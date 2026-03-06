@@ -7,13 +7,14 @@ import '../models/rss_item_model.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
 class RssRemoteDataSource {
-  // ✅ Reliable CORS Proxies for Web/Netlify
+  // ✅ OPTIMIZED ORDER: Codetabs is best for News/Netlify.
+  // Corsproxy is good but picky about URL encoding.
   static const List<String> _publicProxies = [
-    'https://api.allorigins.win/raw?url=', // Best for Netlify
-    'https://corsproxy.io/?', // Good backup
+    'https://api.codetabs.com/v1/proxy?quest=', // 🥇 Best for News
+    'https://corsproxy.io/?', // 🥈 Good backup
+    'https://api.allorigins.win/raw?url=', // 🥉 Last resort
   ];
 
-  // ✅ Headers to mimic a real browser (avoids bot blocking)
   static const Map<String, String> _headers = {
     'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
@@ -35,17 +36,15 @@ class RssRemoteDataSource {
         return [];
       }
 
-      // ✅ FIX: On Web (Netlify), we MUST use a proxy for almost all RSS feeds.
-      // Direct fetching will almost always fail due to CORS.
       if (kIsWeb) {
         return await _fetchWithProxy(cleanUrl, name, limit);
       }
 
-      // ✅ MOBILE/DESKTOP: Try Direct Fetch first (Faster)
+      // Mobile/Desktop Direct Fetch
       try {
         final response = await http
             .get(Uri.parse(cleanUrl), headers: _headers)
-            .timeout(const Duration(seconds: 5));
+            .timeout(const Duration(seconds: 6));
 
         if (response.statusCode == 200) {
           final body = _sanitizeBody(response);
@@ -58,10 +57,9 @@ class RssRemoteDataSource {
           }
         }
       } catch (e) {
-        debugPrint('⚠️ $name: Direct fetch failed, trying proxy');
+        debugPrint('⚠️ $name: Direct fetch failed, trying proxy...');
       }
 
-      // Fallback to proxy for mobile if direct fails
       return await _fetchWithProxy(cleanUrl, name, limit);
     } catch (e) {
       debugPrint('❌ $name: $e');
@@ -69,22 +67,28 @@ class RssRemoteDataSource {
     }
   }
 
-  // ✅ NEW: Dedicated Proxy Fetch Method
   Future<List<RssItemModel>> _fetchWithProxy(
       String url, String name, int limit) async {
     for (final proxy in _publicProxies) {
       try {
-        // Encode URL to handle special characters
-        final proxyUrl = '$proxy${Uri.encodeComponent(url)}';
+        // ✅ CRITICAL FIX: Handle Encoding
+        // Corsproxy.io prefers RAW urls.
+        // Codetabs & AllOrigins prefer ENCODED urls.
+        String proxyUrl;
+        if (proxy.contains('corsproxy.io')) {
+          proxyUrl = '$proxy$url';
+        } else {
+          proxyUrl = '$proxy${Uri.encodeComponent(url)}';
+        }
 
         final response = await http
-            .get(Uri.parse(proxyUrl), headers: _headers)
-            .timeout(const Duration(seconds: 5));
+            .get(Uri.parse(proxyUrl))
+            .timeout(const Duration(seconds: 8));
 
         if (response.statusCode == 200) {
           String body = _sanitizeBody(response);
 
-          // Handle allorigins JSON wrapper if present
+          // Handle AllOrigins JSON wrapper
           if (body.trim().startsWith('{') && body.contains('contents')) {
             try {
               final data = jsonDecode(body);
@@ -101,16 +105,15 @@ class RssRemoteDataSource {
           }
         }
       } catch (e) {
-        debugPrint('⚠️ $name: Proxy failed (${proxy.split('?').first})');
+        debugPrint('⚠️ $name: Proxy failed (${proxy.split('?').first}) -> $e');
         continue;
       }
     }
 
-    // Last resort: Try rss2json API
+    // Last Resort: rss2json API
     return await _fetchViaRss2Json(url, name, limit);
   }
 
-  // ✅ NEW: Dedicated rss2json Method
   Future<List<RssItemModel>> _fetchViaRss2Json(
       String url, String name, int limit) async {
     try {
@@ -149,29 +152,6 @@ class RssRemoteDataSource {
     return [];
   }
 
-  // ✅ Helper: Parse RSS String
-  List<RssItemModel> _parseRssString(String rssString, String name, int limit) {
-    try {
-      final feed = RssFeed.parse(rssString);
-      return feed.items
-          .take(limit)
-          .map((item) => _convertRssItemToModel(item, name))
-          .toList();
-    } catch (e) {
-      // Fallback to manual XML parsing if dart_rss fails
-      try {
-        final document = XmlDocument.parse(_cleanXmlForParsing(rssString));
-        return document
-            .findAllElements('item')
-            .take(limit)
-            .map((e) => RssItemModel.fromXml(e, sourceName: name))
-            .toList();
-      } catch (_) {
-        return [];
-      }
-    }
-  }
-
   Future<List<RssItemModel>> scrapeWebsite(
     String url,
     Map<String, String> selectors, {
@@ -183,17 +163,26 @@ class RssRemoteDataSource {
       final cleanUrl = url.trim();
       String? htmlContent;
 
-      // Use proxy for web scraping
       for (final proxy in _publicProxies) {
         try {
-          final proxyUrl = '$proxy${Uri.encodeComponent(cleanUrl)}';
+          // Use same encoding logic for scraping
+          String proxyUrl;
+          if (proxy.contains('corsproxy.io')) {
+            proxyUrl = '$proxy$cleanUrl';
+          } else {
+            proxyUrl = '$proxy${Uri.encodeComponent(cleanUrl)}';
+          }
+
           final response = await http
-              .get(Uri.parse(proxyUrl), headers: _headers)
-              .timeout(const Duration(seconds: 5));
+              .get(Uri.parse(proxyUrl))
+              .timeout(const Duration(seconds: 8));
 
           if (response.statusCode == 200) {
-            htmlContent = response.body;
-            break;
+            htmlContent = _sanitizeBody(response);
+            if (htmlContent.contains('</html>') ||
+                htmlContent.contains('<body')) {
+              break;
+            }
           }
         } catch (_) {
           continue;
@@ -234,7 +223,7 @@ class RssRemoteDataSource {
     }
   }
 
-  // --- Helper Methods (unchanged) ---
+  // --- Helpers ---
 
   bool _isHtmlResponse(String body) {
     final trimmed = body.trim().toLowerCase();
@@ -246,13 +235,33 @@ class RssRemoteDataSource {
     return xml.trim();
   }
 
+  List<RssItemModel> _parseRssString(String rssString, String name, int limit) {
+    try {
+      final feed = RssFeed.parse(rssString);
+      return feed.items
+          .take(limit)
+          .map((item) => _convertRssItemToModel(item, name))
+          .toList();
+    } catch (e) {
+      try {
+        final document = XmlDocument.parse(_cleanXmlForParsing(rssString));
+        return document
+            .findAllElements('item')
+            .take(limit)
+            .map((e) => RssItemModel.fromXml(e, sourceName: name))
+            .toList();
+      } catch (_) {
+        return [];
+      }
+    }
+  }
+
   RssItemModel _convertRssItemToModel(RssItem item, String sourceName) {
     return RssItemModel(
       title: item.title ?? 'No Title',
       link: item.link ?? '',
       pubDate: item.pubDate ?? DateTime.now().toString(),
       description: item.description ?? '',
-      // imageUrl: null, // Remove or set to null
       publishedAt:
           item.pubDate != null ? RssItemModel.parseDate(item.pubDate!) : null,
       source: sourceName,
@@ -260,7 +269,6 @@ class RssRemoteDataSource {
   }
 
   String _sanitizeBody(http.Response response) {
-    // ✅ CRITICAL: Decode bytes directly as UTF-8, ignore header charset
     String body;
     try {
       body = utf8.decode(response.bodyBytes, allowMalformed: true);
@@ -268,7 +276,6 @@ class RssRemoteDataSource {
       body = latin1.decode(response.bodyBytes, allowInvalid: true);
     }
 
-    // Remove BOM if present
     if (body.isNotEmpty && body.codeUnitAt(0) == 0xFEFF) {
       body = body.substring(1);
     }
