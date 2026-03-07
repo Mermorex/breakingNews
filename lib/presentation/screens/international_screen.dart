@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
@@ -31,13 +34,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
   final List<NewsSource> _rssSources = [
-    // ✅ REDDIT ADDED HERE
-    NewsSource(
-      name: ' World News',
-      url: 'https://www.reddit.com/r/worldnews/new.json', // Added /new
-      type: SourceType.jsonApi,
-    ),
-    // Existing Sources
+    // --- Existing Sources ---
     NewsSource(
         name: 'Al Jazeera Arabic',
         url:
@@ -55,12 +52,35 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
         url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml'),
     NewsSource(
         name: 'The Guardian', url: 'https://www.theguardian.com/world/rss'),
+    NewsSource(
+        name: 'The Hindu',
+        url: 'https://www.thehindu.com/news/international/?service=rss'),
+    NewsSource(
+        name: 'The Moscow Times',
+        url: 'https://www.themoscowtimes.com/rss/news'),
+
+    NewsSource(name: 'Neos Kosmos', url: 'https://neoskosmos.com/en/feed/'),
+
+    // --- FIXED / UPDATED SOURCES ---
+
+    // --- NEW SOURCES ---
+
+    NewsSource(name: 'Euronews', url: 'https://www.euronews.com/rss'),
+    NewsSource(
+        name: 'AP News',
+        url:
+            'https://news.google.com/rss/search?q=site:apnews.com&hl=en-US&gl=US&ceid=US:en'), // Using Google proxy for AP
+    NewsSource(name: '7News Australia', url: 'https://7news.com.au/rss'),
   ];
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
   final Set<int> _loadingIndices = {};
   bool _isGlobalLoading = true;
   final Map<String, String> _sourceErrors = {};
+
+  // ✅ TRANSLATION STATE
+  bool _isArabicContent = false;
+  final Map<String, String> _translationCache = {};
 
   @override
   void initState() {
@@ -109,6 +129,48 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
         });
       }
     }
+  }
+
+  // ✅ TRANSLATION LOGIC
+  void _toggleLanguage() {
+    setState(() {
+      _isArabicContent = !_isArabicContent;
+    });
+  }
+
+  Future<String> _translateText(String text, {bool toArabic = true}) async {
+    if (text.isEmpty) return text;
+    final cacheKey = '$text-$toArabic';
+    if (_translationCache.containsKey(cacheKey))
+      return _translationCache[cacheKey]!;
+
+    try {
+      final langPair = toArabic ? 'en|ar' : 'ar|en';
+      final url =
+          'https://api.mymemory.translated.net/get?q=${Uri.encodeComponent(text)}&langpair=$langPair';
+      final response =
+          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 2));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['responseStatus'] == 200) {
+          final translated = data['responseData']['translatedText'] ?? text;
+          _translationCache[cacheKey] = translated;
+          return translated;
+        }
+      }
+    } catch (e) {
+      debugPrint('Translation failed: $e');
+    }
+    return text;
+  }
+
+  Future<String> _getProcessedTitle(
+      String originalTitle, bool isContentArabic) async {
+    if (_isArabicContent && !isContentArabic)
+      return _translateText(originalTitle, toArabic: true);
+    if (!_isArabicContent && isContentArabic)
+      return _translateText(originalTitle, toArabic: false);
+    return originalTitle;
   }
 
   Future<void> _openArticle(String url) async {
@@ -229,6 +291,40 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
               ],
             ),
           ),
+
+          // ✅ LANGUAGE TOGGLE BUTTON
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _toggleLanguage,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.translate, color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isArabicContent ? 'AR' : 'EN',
+                      style: GoogleFonts.montserrat(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
@@ -261,7 +357,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     required bool isLoading,
     required bool hasError,
   }) {
-    final isReddit = source.url.contains('reddit.com');
     final isArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(source.name);
 
     return SliverToBoxAdapter(
@@ -281,7 +376,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                     ]),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Text(isReddit ? '🔴' : (isArabic ? '🌍' : '📰'),
+                  child: Text(isArabic ? '🌍' : '📰',
                       style: const TextStyle(fontSize: 22)),
                 ),
                 const SizedBox(width: 16),
@@ -324,7 +419,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                           builder: (context) => SourceDetailScreen(
                             sourceName: source.name,
                             sourceUrl: source.url.trim(),
-                            // Pass the type if your DetailScreen supports it
                             sourceType: source.type,
                           ),
                         ),
@@ -432,6 +526,8 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
 
   Widget _buildMainArticleCard(RssItemModel article) {
     final bool hasArabic = _containsArabic(article.title);
+    final bool useArabicStyle = _isArabicContent || hasArabic;
+
     return GestureDetector(
       onTap: () => _openArticle(article.link),
       child: Container(
@@ -474,13 +570,11 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
               Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
-                  crossAxisAlignment: hasArabic
+                  crossAxisAlignment: useArabicStyle
                       ? CrossAxisAlignment.end
                       : CrossAxisAlignment.start,
                   children: [
                     Row(
-                      textDirection:
-                          hasArabic ? TextDirection.rtl : TextDirection.ltr,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -508,35 +602,46 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                       ],
                     ),
                     const Spacer(),
-                    Text(
-                      article.title,
-                      style: _getTextStyle(
-                          hasArabic,
-                          const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              height: 1.4)),
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: hasArabic ? TextAlign.right : TextAlign.left,
-                    ),
+
+                    // ✅ TRANSLATABLE TITLE
+                    FutureBuilder<String>(
+                        future: _getProcessedTitle(article.title, hasArabic),
+                        builder: (context, snapshot) {
+                          final text = snapshot.data ?? article.title;
+                          return Text(
+                            text,
+                            style: _getTextStyle(
+                                useArabicStyle,
+                                const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    height: 1.4)),
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: useArabicStyle
+                                ? TextAlign.right
+                                : TextAlign.left,
+                          );
+                        }),
+
                     const SizedBox(height: 12),
                     Text(
                       _getSnippet(article.description),
                       style: _getTextStyle(
-                          hasArabic,
+                          useArabicStyle,
                           TextStyle(
                               fontSize: 13,
                               color: Colors.white.withOpacity(0.6),
                               height: 1.5)),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      textAlign: hasArabic ? TextAlign.right : TextAlign.left,
+                      textAlign:
+                          useArabicStyle ? TextAlign.right : TextAlign.left,
                     ),
                     const SizedBox(height: 16),
                     Align(
-                      alignment: hasArabic
+                      alignment: useArabicStyle
                           ? Alignment.centerLeft
                           : Alignment.centerRight,
                       child: Container(
@@ -563,6 +668,8 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
 
   Widget _buildSideArticleCard(RssItemModel article) {
     final bool hasArabic = _containsArabic(article.title);
+    final bool useArabicStyle = _isArabicContent || hasArabic;
+
     return GestureDetector(
       onTap: () => _openArticle(article.link),
       child: Container(
@@ -594,7 +701,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
               Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
-                  crossAxisAlignment: hasArabic
+                  crossAxisAlignment: useArabicStyle
                       ? CrossAxisAlignment.end
                       : CrossAxisAlignment.start,
                   children: [
@@ -603,19 +710,29 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                             fontSize: 11,
                             color: InternationalNewsTheme.textGrey)),
                     const SizedBox(height: 10),
-                    Text(
-                      article.title,
-                      style: _getTextStyle(
-                          hasArabic,
-                          const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                              height: 1.4)),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: hasArabic ? TextAlign.right : TextAlign.left,
-                    ),
+
+                    // ✅ TRANSLATABLE TITLE
+                    FutureBuilder<String>(
+                        future: _getProcessedTitle(article.title, hasArabic),
+                        builder: (context, snapshot) {
+                          final text = snapshot.data ?? article.title;
+                          return Text(
+                            text,
+                            style: _getTextStyle(
+                                useArabicStyle,
+                                const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    height: 1.4)),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: useArabicStyle
+                                ? TextAlign.right
+                                : TextAlign.left,
+                          );
+                        }),
+
                     const Spacer(),
                     Row(
                       children: [

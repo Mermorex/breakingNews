@@ -1,10 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   final List<RssItemModel> worldNewsArticles;
   final List<RssItemModel> tunisianArticles;
   final List<RssItemModel> moroccanArticles;
@@ -42,10 +45,61 @@ class DashboardScreen extends StatelessWidget {
     required this.iranianCount,
   });
 
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  // ✅ State for Content Language (false = English, true = Arabic)
+  bool _isArabicContent = false;
+  final Map<String, String> _translationCache = {};
+
   static const Color cryptoDarkBg = Color(0xFF0B0E14);
   static const Color cryptoCardBg = Color(0xFF151A25);
   static const Color cryptoOrange = Color(0xFFFF8C00);
   static const Color cryptoGold = Color(0xFFFFD700);
+
+  // ✅ Translation Logic
+  void _toggleLanguage() {
+    setState(() {
+      _isArabicContent = !_isArabicContent;
+    });
+  }
+
+  Future<String> _translateText(String text, {bool toArabic = true}) async {
+    if (text.isEmpty) return text;
+    final cacheKey = '$text-$toArabic';
+    if (_translationCache.containsKey(cacheKey))
+      return _translationCache[cacheKey]!;
+
+    try {
+      final langPair = toArabic ? 'en|ar' : 'ar|en';
+      final url =
+          'https://api.mymemory.translated.net/get?q=${Uri.encodeComponent(text)}&langpair=$langPair';
+      final response =
+          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 2));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['responseStatus'] == 200) {
+          final translated = data['responseData']['translatedText'] ?? text;
+          _translationCache[cacheKey] = translated;
+          return translated;
+        }
+      }
+    } catch (e) {
+      debugPrint('Translation failed: $e');
+    }
+    return text;
+  }
+
+  Future<String> _getProcessedTitle(
+      String originalTitle, bool isContentArabic) async {
+    if (_isArabicContent && !isContentArabic)
+      return _translateText(originalTitle, toArabic: true);
+    if (!_isArabicContent && isContentArabic)
+      return _translateText(originalTitle, toArabic: false);
+    return originalTitle;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,44 +107,44 @@ class DashboardScreen extends StatelessWidget {
       slivers: [
         SliverToBoxAdapter(child: _buildCompactStatsHeader()),
 
-        // ✅ Pass a fallback source name based on section
+        // ✅ ORIGINAL SECTIONS RESTORED
         _buildSection(
           emoji: '🌍',
           title: 'World News',
-          articles: worldNewsArticles,
-          onViewAll: onViewWorldNews,
+          articles: widget.worldNewsArticles,
+          onViewAll: widget.onViewWorldNews,
           fallbackSource: 'World News',
         ),
 
         _buildSection(
           emoji: '🇹🇳',
           title: 'Tunisia Feed',
-          articles: tunisianArticles,
-          onViewAll: onViewTunisia,
+          articles: widget.tunisianArticles,
+          onViewAll: widget.onViewTunisia,
           fallbackSource: 'Tunisia',
         ),
 
         _buildSection(
           emoji: '🇲🇦',
           title: 'Morocco Feed',
-          articles: moroccanArticles,
-          onViewAll: onViewMorocco,
+          articles: widget.moroccanArticles,
+          onViewAll: widget.onViewMorocco,
           fallbackSource: 'Morocco',
         ),
 
         _buildSection(
           emoji: '🇩🇿',
           title: 'Algeria Feed',
-          articles: algerianArticles,
-          onViewAll: onViewAlgeria,
+          articles: widget.algerianArticles,
+          onViewAll: widget.onViewAlgeria,
           fallbackSource: 'Algeria',
         ),
 
         _buildSection(
           emoji: '🇮🇷',
           title: 'Iran Feed',
-          articles: iranianArticles,
-          onViewAll: onViewIran,
+          articles: widget.iranianArticles,
+          onViewAll: widget.onViewIran,
           fallbackSource: 'Iran',
         ),
 
@@ -136,7 +190,7 @@ class DashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$totalArticles Articles',
+                  '${widget.totalArticles} Articles',
                   style: GoogleFonts.montserrat(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -146,12 +200,45 @@ class DashboardScreen extends StatelessWidget {
               ],
             ),
           ),
+
+          // ✅ LANGUAGE TOGGLE BUTTON
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _toggleLanguage,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.translate, color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isArabicContent ? 'AR' : 'EN',
+                      style: GoogleFonts.montserrat(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           Row(
             children: [
-              _buildQuickStat('🇹🇳', tunisianCount),
-              _buildQuickStat('🇲🇦', moroccanCount),
-              _buildQuickStat('🇩🇿', algerianCount),
-              _buildQuickStat('🇮🇷', iranianCount),
+              _buildQuickStat('🇹🇳', widget.tunisianCount),
+              _buildQuickStat('🇲🇦', widget.moroccanCount),
+              _buildQuickStat('🇩🇿', widget.algerianCount),
+              _buildQuickStat('🇮🇷', widget.iranianCount),
             ],
           ),
         ],
@@ -161,23 +248,23 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildQuickStat(String emoji, int count) {
     return Container(
-      margin: const EdgeInsets.only(left: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white.withOpacity(0.3)),
       ),
       child: Row(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
+          Text(emoji, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
           Text(
             count.toString(),
             style: GoogleFonts.montserrat(
               fontWeight: FontWeight.bold,
               color: Colors.white,
-              fontSize: 14,
+              fontSize: 12,
             ),
           ),
         ],
@@ -191,7 +278,7 @@ class DashboardScreen extends StatelessWidget {
     required String title,
     required List<RssItemModel> articles,
     required VoidCallback onViewAll,
-    required String fallbackSource, // ✅ NEW: Added fallback
+    required String fallbackSource,
   }) {
     return SliverToBoxAdapter(
       child: Padding(
@@ -246,7 +333,6 @@ class DashboardScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     flex: 5,
-                    // ✅ Pass fallbackSource
                     child:
                         _buildMainArticleCard(articles.first, fallbackSource),
                   ),
@@ -305,10 +391,10 @@ class DashboardScreen extends StatelessWidget {
 
   // --- CARDS ---
 
-  // ✅ Updated to accept fallbackSource
   Widget _buildMainArticleCard(RssItemModel article, String fallbackSource) {
-    final bool hasArabic = _containsArabic(article.title);
-    // Logic: Use article.source, if it's null/empty/Unknown use fallback
+    final bool hasArabicContent = _containsArabic(article.title);
+    final bool useArabicStyle = _isArabicContent || hasArabicContent;
+
     final String displaySource = (article.source == null ||
             article.source!.isEmpty ||
             article.source == 'Unknown')
@@ -343,7 +429,7 @@ class DashboardScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
-                  crossAxisAlignment: hasArabic
+                  crossAxisAlignment: useArabicStyle
                       ? CrossAxisAlignment.end
                       : CrossAxisAlignment.start,
                   children: [
@@ -355,9 +441,7 @@ class DashboardScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                               color: cryptoOrange.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(8)),
-                          child: Text(
-                              displaySource
-                                  .toUpperCase(), // ✅ Use computed source
+                          child: Text(displaySource.toUpperCase(),
                               style: GoogleFonts.montserrat(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
@@ -373,22 +457,32 @@ class DashboardScreen extends StatelessWidget {
                       ],
                     ),
                     const Spacer(),
-                    Text(article.title,
-                        style: _getTextStyle(
-                            hasArabic,
-                            const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                height: 1.4)),
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign:
-                            hasArabic ? TextAlign.right : TextAlign.left),
+
+                    // ✅ TRANSLATABLE TITLE
+                    FutureBuilder<String>(
+                        future:
+                            _getProcessedTitle(article.title, hasArabicContent),
+                        builder: (context, snapshot) {
+                          final text = snapshot.data ?? article.title;
+                          return Text(text,
+                              style: _getTextStyle(
+                                  useArabicStyle,
+                                  const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      height: 1.4)),
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: useArabicStyle
+                                  ? TextAlign.right
+                                  : TextAlign.left);
+                        }),
+
                     const SizedBox(height: 12),
                     Text(_getSnippet(article.description),
                         style: _getTextStyle(
-                            hasArabic,
+                            useArabicStyle,
                             TextStyle(
                                 fontSize: 13,
                                 color: Colors.white.withOpacity(0.6),
@@ -396,10 +490,10 @@ class DashboardScreen extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign:
-                            hasArabic ? TextAlign.right : TextAlign.left),
+                            useArabicStyle ? TextAlign.right : TextAlign.left),
                     const SizedBox(height: 16),
                     Align(
-                        alignment: hasArabic
+                        alignment: useArabicStyle
                             ? Alignment.centerLeft
                             : Alignment.centerRight,
                         child: Container(
@@ -419,9 +513,10 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // ✅ Updated to accept fallbackSource
   Widget _buildSideArticleCard(RssItemModel article, String fallbackSource) {
-    final bool hasArabic = _containsArabic(article.title);
+    final bool hasArabicContent = _containsArabic(article.title);
+    final bool useArabicStyle = _isArabicContent || hasArabicContent;
+
     final String displaySource = (article.source == null ||
             article.source!.isEmpty ||
             article.source == 'Unknown')
@@ -440,26 +535,36 @@ class DashboardScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
-            crossAxisAlignment:
-                hasArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment: useArabicStyle
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: [
-              Text(displaySource.toUpperCase(), // ✅ Use computed source
+              Text(displaySource.toUpperCase(),
                   style: GoogleFonts.montserrat(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: cryptoGold)),
               const SizedBox(height: 10),
-              Text(article.title,
-                  style: _getTextStyle(
-                      hasArabic,
-                      const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          height: 1.4)),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: hasArabic ? TextAlign.right : TextAlign.left),
+
+              // ✅ TRANSLATABLE TITLE
+              FutureBuilder<String>(
+                  future: _getProcessedTitle(article.title, hasArabicContent),
+                  builder: (context, snapshot) {
+                    final text = snapshot.data ?? article.title;
+                    return Text(text,
+                        style: _getTextStyle(
+                            useArabicStyle,
+                            const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                height: 1.4)),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign:
+                            useArabicStyle ? TextAlign.right : TextAlign.left);
+                  }),
+
               const Spacer(),
               Row(
                 children: [

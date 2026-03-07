@@ -30,6 +30,7 @@ class DashboardConstants {
   ];
 
   static const List<Map<String, String>> internationalFeatured = [
+    // --- Core Sources ---
     {
       'name': 'Al Jazeera English',
       'url': 'https://www.aljazeera.com/xml/rss/all.xml'
@@ -45,7 +46,40 @@ class DashboardConstants {
       'url':
           'https://news.google.com/rss/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen'
     },
+    {'name': 'CNN', 'url': 'http://rss.cnn.com/rss/edition.rss'},
+    {
+      'name': 'NYT World',
+      'url': 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml'
+    },
+    {'name': 'The Guardian', 'url': 'https://www.theguardian.com/world/rss'},
+
+    // --- Verified New Sources ---
+
+    {
+      'name': 'The Moscow Times',
+      'url': 'https://www.themoscowtimes.com/rss/news'
+    },
+
+    {'name': 'Kyiv Post', 'url': 'https://www.kyivpost.com/feed/'},
+    {'name': 'Neos Kosmos', 'url': 'https://neoskosmos.com/en/feed/'},
+    {'name': 'Indian Express', 'url': 'https://indianexpress.com/feed/'},
+    {'name': 'Euronews', 'url': 'https://www.euronews.com/rss'},
+    {
+      'name': 'AP News',
+      'url':
+          'https://news.google.com/rss/search?q=site:apnews.com&hl=en-US&gl=US&ceid=US:en'
+    },
+    {'name': '7News Australia', 'url': 'https://7news.com.au/rss'},
+
+    {
+      'name': 'TRT World',
+      'url':
+          'https://news.google.com/rss/search?q=site:trtworld.com&hl=en-US&gl=US&ceid=US:en'
+    },
+
+    // --- REMOVED: Madhyamam and Ynetnews (RSS feeds broken/unavailable) ---
   ];
+
   static const List<Map<String, String>> iranianFeatured = [
     {'name': 'Mehr News', 'url': 'https://en.mehrnews.com/rss'},
     {

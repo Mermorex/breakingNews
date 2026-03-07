@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:news_app/presentation/screens/dashboard/dashboard_screen.dart'; // Import new screen
+import 'package:news_app/presentation/screens/dashboard/dashboard_screen.dart';
 import 'package:news_app/presentation/screens/ai_chat_screen.dart';
 import 'package:news_app/presentation/screens/irannews_screen.dart';
 import 'package:news_app/presentation/screens/Tunisianscreen.dart';
 import 'package:news_app/presentation/screens/international_screen.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../data/models/rss_item_model.dart';
 import '../algeria_news_screen.dart';
 import '../morocco_news_screen.dart';
 import '../widget/sidebar.dart';
@@ -63,13 +62,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // ✅ UPDATED: Navigation Logic to match new order
   Widget _buildCurrentView() {
     switch (_controller.selectedIndex) {
       case 0:
         return FadeTransition(
           opacity: _fadeController,
-          child: _buildDashboard(), // Use new separated Dashboard
+          child: _buildDashboard(), // ✅ Calls the helper that passes data
         );
       case 1:
         return const TunisianNewsScreen(isEmbedded: true);
@@ -150,12 +148,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ✅ DASHBOARD BUILDER: Passes data to DashboardScreen
+  // ✅ DASHBOARD BUILDER: Bridges the Controller data to the DashboardScreen UI
   Widget _buildDashboard() {
     return DashboardScreen(
       // Data
-      worldNewsArticles: _controller
-          .internationalFeaturedArticles, // Using International feed for World News
+      worldNewsArticles: _controller.internationalFeaturedArticles,
       tunisianArticles: _controller.tunisianFeaturedArticles,
       moroccanArticles: _controller.moroccanFeaturedArticles,
       algerianArticles: _controller.algerianFeaturedArticles,
