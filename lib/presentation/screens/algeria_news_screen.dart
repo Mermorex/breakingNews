@@ -31,26 +31,33 @@ class AlgeriaNewsScreen extends StatefulWidget {
 class _AlgeriaNewsScreenState extends State<AlgeriaNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  // ✅ Algerian News Sources (Mixed French/Arabic)
+  // ✅ UPDATED Algerian News Sources (Verified 2026)
   final List<NewsSource> _rssSources = [
-    // French Sources
+    // ─────────────────────────────────────────────────────
+    // FRENCH SOURCES (WordPress = /feed/)
+    // ─────────────────────────────────────────────────────
     NewsSource(
-        name: 'TSA - Tout Sur l\'Algérie',
-        url: 'https://www.tsa-algerie.com/feed/'),
-    NewsSource(name: 'El Watan', url: 'https://elwatan.dz/feed/'),
-    NewsSource(name: 'Liberté', url: 'https://www.liberte-algerie.com/feed/'),
-    NewsSource(
-        name: 'Le Soir d\'Algérie',
-        url: 'https://www.lesoirdalgerie.com/feed/'),
+      name: 'TSA - Tout Sur l\'Algérie',
+      url: 'https://www.tsa-algerie.com/feed/',
+    ),
 
-    // Arabic Sources
-    NewsSource(name: 'El Khabar', url: 'https://elkhabar.com/feed/'),
-    NewsSource(name: 'Echorouk', url: 'https://echoroukonline.com/feed/'),
-    NewsSource(name: 'Ennahar', url: 'https://www.ennaharonline.com/feed/'),
-
-    // State/English
     NewsSource(
-        name: 'Algeria Press Service', url: 'https://www.aps.dz/en/feed/'),
+      name: 'Le Soir d\'Algérie',
+      url: 'https://www.lesoirdalgerie.com/feed/', // RSS available [[39]][[46]]
+    ),
+
+    NewsSource(
+      name: 'Echorouk Online',
+      url: 'https://www.echoroukonline.com/rss/', // Top Arabic [[50]]
+    ),
+    NewsSource(
+      name: 'Ennahar Online',
+      url: 'https://www.ennaharonline.com/rss/',
+    ),
+
+    // ─────────────────────────────────────────────────────
+    // STATE / OFFICIAL (APS)
+    // ─────────────────────────────────────────────────────
   ];
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
@@ -88,7 +95,7 @@ class _AlgeriaNewsScreenState extends State<AlgeriaNewsScreen> {
 
     try {
       final items = await _dataSource.fetchRssFeed(
-        source.url,
+        source.url.trim(), // ✅ Trim whitespace
         sourceName: source.name,
         limit: 3, // 1 Main + 2 Side
       );
@@ -130,7 +137,7 @@ class _AlgeriaNewsScreenState extends State<AlgeriaNewsScreen> {
         backgroundColor: AlgerianNewsTheme.cryptoDarkBg,
         elevation: 0,
         title: Text(
-          'Algeria Feed', // ✅ Orbitron Font
+          'Algeria Feed',
           style: GoogleFonts.orbitron(
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -140,9 +147,10 @@ class _AlgeriaNewsScreenState extends State<AlgeriaNewsScreen> {
         centerTitle: true,
         actions: [
           if (_sourceErrors.isNotEmpty)
-            const Tooltip(
-              message: 'Some sources failed',
-              child: Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            Tooltip(
+              message: '${_sourceErrors.length} sources failed',
+              child:
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orange),
             ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded,
@@ -182,7 +190,7 @@ class _AlgeriaNewsScreenState extends State<AlgeriaNewsScreen> {
     );
   }
 
-  // ✅ SAME STATUS HEADER STYLE
+  // ✅ STATUS HEADER
   Widget _buildStatusHeader() {
     return Container(
       margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
@@ -258,7 +266,7 @@ class _AlgeriaNewsScreenState extends State<AlgeriaNewsScreen> {
     );
   }
 
-  // ✅ SAME SECTION LAYOUT (Asymmetric)
+  // ✅ SECTION LAYOUT (Asymmetric)
   Widget _buildSection({
     required NewsSource source,
     required List<RssItemModel> items,

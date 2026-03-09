@@ -1,244 +1,153 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
+import 'package:google_fonts/google_fonts.dart';
 
-// top_bar.dart - Crypto Tech Dark Theme
 class TopBar extends StatelessWidget {
+  final String title;
   final VoidCallback onRefresh;
   final bool isLoading;
-  final TextEditingController? searchController;
-  final Function(String)? onSearch;
-  final String? title;
-
-  // Crypto Tech Palette
-  static const Color _bgColor = Color(0xFF0B0E14); // Matches Home Screen
-  static const Color _cardColor = Color(0xFF151A25); // Dark Grey for inputs
-  static const Color _accentOrange = Color(0xFFFF8C00);
-  static const Color _textWhite = Colors.white;
-  static const Color _textGrey = Color(0xFF8B95A5);
+  final TextEditingController searchController;
+  final bool implyLeading; // New parameter for mobile menu icon
 
   const TopBar({
     super.key,
+    required this.title,
     required this.onRefresh,
     required this.isLoading,
-    this.searchController,
-    this.onSearch,
-    this.title,
+    required this.searchController,
+    this.implyLeading = false, // Default is false
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
-        // Use Dark Background
-        color: _bgColor,
-        // Subtle Bottom Border
+        color: const Color(0xFF0F1219),
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+          bottom: BorderSide(
+            color: Colors.white.withOpacity(0.05),
+          ),
         ),
       ),
       child: Row(
         children: [
-          if (title != null) ...[
-            Text(
-              title!,
-              style: GoogleFonts.montserrat(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: _textWhite,
-              ),
-            ),
-            const SizedBox(width: 32),
-          ],
-          Expanded(
-            flex: 3,
-            child: _SearchField(
-              controller: searchController,
-              onChanged: onSearch,
+          // Show Menu Icon on Mobile, otherwise nothing
+          if (implyLeading)
+            IconButton(
+              icon: const Icon(Icons.menu, color: Colors.white),
+              onPressed: () {
+                Scaffold.of(context).openDrawer();
+              },
+            )
+          else
+            const SizedBox.shrink(),
+
+          if (implyLeading) const SizedBox(width: 16),
+
+          // Title
+          Text(
+            title,
+            style: GoogleFonts.montserrat(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
             ),
           ),
+
           const Spacer(),
-          _ActionButton(
-            icon: isLoading ? null : Icons.refresh_rounded,
-            isLoading: isLoading,
-            onPressed: isLoading ? null : onRefresh,
-            tooltip: 'Refresh feeds',
-          ),
-          const SizedBox(width: 8),
-          _ActionButton(
-            icon: Icons.notifications_outlined,
-            onPressed: () {},
-            badge: '3',
-          ),
-          const SizedBox(width: 16),
-          _ProfileAvatar(),
-        ],
-      ),
-    );
-  }
-}
 
-class _SearchField extends StatelessWidget {
-  final TextEditingController? controller;
-  final Function(String)? onChanged;
-
-  const _SearchField({this.controller, this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 44,
-      // Dark "Glassy" Input Style
-      decoration: BoxDecoration(
-        color: const Color(0xFF151A25), // Darker than bg
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 16),
-          // Orange Icon for accent
-          const Icon(Icons.search, color: Color(0xFFFF8C00), size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              style: GoogleFonts.montserrat(
-                color: Colors.white,
-                fontSize: 14,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search across all news sources...',
-                hintStyle: GoogleFonts.montserrat(
-                  color: const Color(0xFF8B95A5),
-                  fontSize: 14,
-                ),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ),
+          // Search Bar
           Container(
-            margin: const EdgeInsets.all(6),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            width: 300,
+            height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF0B0E14),
-              borderRadius: BorderRadius.circular(6),
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white.withOpacity(0.1)),
             ),
-            child: Text(
-              '⌘K',
-              style: GoogleFonts.montserrat(
-                fontSize: 11,
-                color: const Color(0xFF8B95A5),
-                fontWeight: FontWeight.w600,
+            child: TextField(
+              controller: searchController,
+              style: GoogleFonts.montserrat(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Search...',
+                hintStyle: GoogleFonts.montserrat(
+                  color: const Color(0xFF8B95A5),
+                ),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: Color(0xFF8B95A5),
+                  size: 20,
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 8),
-        ],
-      ),
-    );
-  }
-}
 
-class _ActionButton extends StatelessWidget {
-  final IconData? icon;
-  final VoidCallback? onPressed;
-  final bool isLoading;
-  final String? badge;
-  final String? tooltip;
+          const SizedBox(width: 16),
 
-  const _ActionButton({
-    this.icon,
-    this.onPressed,
-    this.isLoading = false,
-    this.badge,
-    this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip ?? '',
-      child: Stack(
-        children: [
+          // Refresh Button
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: onPressed,
-              borderRadius: BorderRadius.circular(10),
+              onTap: isLoading ? null : onRefresh,
+              borderRadius: BorderRadius.circular(12),
               child: Container(
-                width: 40,
-                height: 40,
-                // Dark Button Style
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF151A25),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFFFF8C00),
+                      const Color(0xFFFFD700).withOpacity(0.8),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF8C00).withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: isLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(10),
+                child: Row(
+                  children: [
+                    if (isLoading)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFFFF8C00)), // Orange Loader
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
-                    : Icon(icon, size: 20, color: const Color(0xFF8B95A5)),
+                    else
+                      const Icon(
+                        Icons.refresh_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isLoading ? 'Loading...' : 'Refresh',
+                      style: GoogleFonts.montserrat(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          if (badge != null)
-            Positioned(
-              right: 0,
-              top: 0,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF8C00), // Orange Badge
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF0B0E14), width: 2),
-                ),
-                child: Text(
-                  badge!,
-                  style: GoogleFonts.montserrat(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
         ],
-      ),
-    );
-  }
-}
-
-class _ProfileAvatar extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 40,
-      // Crypto Gradient (Orange to Gold)
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFF8C00),
-            Color(0xFFFFD700),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Icon(
-        Icons.person_outline,
-        color: Colors.white,
-        size: 20,
       ),
     );
   }

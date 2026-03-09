@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:news_app/core/utils/responsive.dart'; // Import Responsive Helper
 import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
@@ -34,7 +35,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
   final List<NewsSource> _rssSources = [
-    // --- Existing Sources ---
     NewsSource(
         name: 'Al Jazeera Arabic',
         url:
@@ -58,18 +58,12 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     NewsSource(
         name: 'The Moscow Times',
         url: 'https://www.themoscowtimes.com/rss/news'),
-
     NewsSource(name: 'Neos Kosmos', url: 'https://neoskosmos.com/en/feed/'),
-
-    // --- FIXED / UPDATED SOURCES ---
-
-    // --- NEW SOURCES ---
-
     NewsSource(name: 'Euronews', url: 'https://www.euronews.com/rss'),
     NewsSource(
         name: 'AP News',
         url:
-            'https://news.google.com/rss/search?q=site:apnews.com&hl=en-US&gl=US&ceid=US:en'), // Using Google proxy for AP
+            'https://news.google.com/rss/search?q=site:apnews.com&hl=en-US&gl=US&ceid=US:en'),
     NewsSource(name: '7News Australia', url: 'https://7news.com.au/rss'),
   ];
 
@@ -78,7 +72,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   bool _isGlobalLoading = true;
   final Map<String, String> _sourceErrors = {};
 
-  // ✅ TRANSLATION STATE
   bool _isArabicContent = false;
   final Map<String, String> _translationCache = {};
 
@@ -131,7 +124,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     }
   }
 
-  // ✅ TRANSLATION LOGIC
   void _toggleLanguage() {
     setState(() {
       _isArabicContent = !_isArabicContent;
@@ -141,8 +133,9 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   Future<String> _translateText(String text, {bool toArabic = true}) async {
     if (text.isEmpty) return text;
     final cacheKey = '$text-$toArabic';
-    if (_translationCache.containsKey(cacheKey))
+    if (_translationCache.containsKey(cacheKey)) {
       return _translationCache[cacheKey]!;
+    }
 
     try {
       final langPair = toArabic ? 'en|ar' : 'ar|en';
@@ -166,10 +159,12 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
 
   Future<String> _getProcessedTitle(
       String originalTitle, bool isContentArabic) async {
-    if (_isArabicContent && !isContentArabic)
+    if (_isArabicContent && !isContentArabic) {
       return _translateText(originalTitle, toArabic: true);
-    if (!_isArabicContent && isContentArabic)
+    }
+    if (!_isArabicContent && isContentArabic) {
       return _translateText(originalTitle, toArabic: false);
+    }
     return originalTitle;
   }
 
@@ -242,10 +237,14 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     );
   }
 
+  // --- HEADER (Responsive) ---
   Widget _buildStatusHeader() {
+    final isMobile = ResponsiveHelper.isMobile(context);
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
-      padding: const EdgeInsets.all(20),
+      margin:
+          EdgeInsets.fromLTRB(isMobile ? 16 : 32, 24, isMobile ? 16 : 32, 16),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [
@@ -255,7 +254,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 20 : 24),
         boxShadow: [
           BoxShadow(
             color: InternationalNewsTheme.cryptoOrange.withOpacity(0.3),
@@ -264,86 +263,132 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'GLOBAL COVERAGE',
-                  style: GoogleFonts.robotoMono(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white.withOpacity(0.9),
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_rssSources.length} Active Sources',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ✅ LANGUAGE TOGGLE BUTTON
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _toggleLanguage,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(0.3)),
-                ),
-                child: Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.translate, color: Colors.white, size: 16),
-                    const SizedBox(width: 6),
                     Text(
-                      _isArabicContent ? 'AR' : 'EN',
+                      'GLOBAL COVERAGE',
+                      style: GoogleFonts.robotoMono(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withOpacity(0.9),
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_rssSources.length} Active Sources',
                       style: GoogleFonts.montserrat(
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
-                        fontSize: 14,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.public, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  '${_dashboardData.length}',
-                  style: GoogleFonts.montserrat(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _buildLangToggle(),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildSourceCountBadge(),
+                    ),
+                  ],
                 ),
               ],
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'GLOBAL COVERAGE',
+                        style: GoogleFonts.robotoMono(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withOpacity(0.9),
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_rssSources.length} Active Sources',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildLangToggle(),
+                const SizedBox(width: 10),
+                _buildSourceCountBadge(),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildLangToggle() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _toggleLanguage,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.translate, color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                _isArabicContent ? 'AR' : 'EN',
+                style: GoogleFonts.montserrat(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSourceCountBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.public, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            '${_dashboardData.length}',
+            style: GoogleFonts.montserrat(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              fontSize: 16,
             ),
           ),
         ],
@@ -351,6 +396,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     );
   }
 
+  // --- SECTION (Responsive) ---
   Widget _buildSection({
     required NewsSource source,
     required List<RssItemModel> items,
@@ -358,10 +404,12 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     required bool hasError,
   }) {
     final isArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(source.name);
+    final isMobile = ResponsiveHelper.isMobile(context);
 
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+        padding:
+            EdgeInsets.fromLTRB(isMobile ? 16 : 32, 16, isMobile ? 16 : 32, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -460,25 +508,44 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
             if (isLoading && items.isEmpty)
               _buildLoadingPlaceholder()
             else if (items.isNotEmpty)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 5,
-                    child: _buildMainArticleCard(items.first),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    flex: 4,
-                    child: Column(
+              // ✅ RESPONSIVE GRID LOGIC
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  // Use Column for Mobile, Row for Desktop/Tablet
+                  if (constraints.maxWidth < 700) {
+                    return Column(
                       children: [
-                        if (items.length > 1) _buildSideArticleCard(items[1]),
-                        if (items.length > 2) const SizedBox(height: 16),
-                        if (items.length > 2) _buildSideArticleCard(items[2]),
+                        _buildMainArticleCard(items.first),
+                        ...items.skip(1).take(2).map((item) => Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: _buildSideArticleCard(item),
+                            )),
                       ],
-                    ),
-                  ),
-                ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: _buildMainArticleCard(items.first),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        flex: 4,
+                        child: Column(
+                          children: [
+                            if (items.length > 1)
+                              _buildSideArticleCard(items[1]),
+                            if (items.length > 2) const SizedBox(height: 16),
+                            if (items.length > 2)
+                              _buildSideArticleCard(items[2]),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               )
             else
               _buildEmptyErrorState(hasError),
@@ -524,14 +591,17 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     );
   }
 
+  // --- CARDS (Responsive) ---
+
   Widget _buildMainArticleCard(RssItemModel article) {
     final bool hasArabic = _containsArabic(article.title);
     final bool useArabicStyle = _isArabicContent || hasArabic;
+    final isMobile = ResponsiveHelper.isMobile(context);
 
     return GestureDetector(
       onTap: () => _openArticle(article.link),
       child: Container(
-        height: 340,
+        height: isMobile ? 280 : 340, // Responsive height
         decoration: BoxDecoration(
           color: InternationalNewsTheme.cryptoCardBg,
           borderRadius: BorderRadius.circular(24),
@@ -568,7 +638,8 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(24.0),
+                padding: EdgeInsets.all(
+                    isMobile ? 20.0 : 24.0), // Responsive padding
                 child: Column(
                   crossAxisAlignment: useArabicStyle
                       ? CrossAxisAlignment.end
@@ -602,8 +673,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                       ],
                     ),
                     const Spacer(),
-
-                    // ✅ TRANSLATABLE TITLE
                     FutureBuilder<String>(
                         future: _getProcessedTitle(article.title, hasArabic),
                         builder: (context, snapshot) {
@@ -612,8 +681,9 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                             text,
                             style: _getTextStyle(
                                 useArabicStyle,
-                                const TextStyle(
-                                    fontSize: 20,
+                                TextStyle(
+                                    fontSize:
+                                        isMobile ? 18 : 20, // Responsive font
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                     height: 1.4)),
@@ -624,7 +694,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                                 : TextAlign.left,
                           );
                         }),
-
                     const SizedBox(height: 12),
                     Text(
                       _getSnippet(article.description),
@@ -669,11 +738,12 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   Widget _buildSideArticleCard(RssItemModel article) {
     final bool hasArabic = _containsArabic(article.title);
     final bool useArabicStyle = _isArabicContent || hasArabic;
+    final isMobile = ResponsiveHelper.isMobile(context);
 
     return GestureDetector(
       onTap: () => _openArticle(article.link),
       child: Container(
-        height: 162,
+        height: isMobile ? 150 : 162, // Responsive height
         decoration: BoxDecoration(
           color: InternationalNewsTheme.cryptoCardBg,
           borderRadius: BorderRadius.circular(20),
@@ -699,7 +769,8 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(20.0),
+                padding: EdgeInsets.all(
+                    isMobile ? 16.0 : 20.0), // Responsive padding
                 child: Column(
                   crossAxisAlignment: useArabicStyle
                       ? CrossAxisAlignment.end
@@ -709,9 +780,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                         style: GoogleFonts.montserrat(
                             fontSize: 11,
                             color: InternationalNewsTheme.textGrey)),
-                    const SizedBox(height: 10),
-
-                    // ✅ TRANSLATABLE TITLE
+                    const SizedBox(height: 8),
                     FutureBuilder<String>(
                         future: _getProcessedTitle(article.title, hasArabic),
                         builder: (context, snapshot) {
@@ -720,8 +789,9 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                             text,
                             style: _getTextStyle(
                                 useArabicStyle,
-                                const TextStyle(
-                                    fontSize: 14,
+                                TextStyle(
+                                    fontSize:
+                                        isMobile ? 13 : 14, // Responsive font
                                     fontWeight: FontWeight.w600,
                                     color: Colors.white,
                                     height: 1.4)),
@@ -732,7 +802,6 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
                                 : TextAlign.left,
                           );
                         }),
-
                     const Spacer(),
                     Row(
                       children: [

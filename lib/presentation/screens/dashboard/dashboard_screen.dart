@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:news_app/core/utils/responsive.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -50,7 +51,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // ✅ State for Content Language (false = English, true = Arabic)
   bool _isArabicContent = false;
   final Map<String, String> _translationCache = {};
 
@@ -59,7 +59,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const Color cryptoOrange = Color(0xFFFF8C00);
   static const Color cryptoGold = Color(0xFFFFD700);
 
-  // ✅ Translation Logic
   void _toggleLanguage() {
     setState(() {
       _isArabicContent = !_isArabicContent;
@@ -69,8 +68,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<String> _translateText(String text, {bool toArabic = true}) async {
     if (text.isEmpty) return text;
     final cacheKey = '$text-$toArabic';
-    if (_translationCache.containsKey(cacheKey))
+    if (_translationCache.containsKey(cacheKey)) {
       return _translationCache[cacheKey]!;
+    }
 
     try {
       final langPair = toArabic ? 'en|ar' : 'ar|en';
@@ -94,10 +94,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<String> _getProcessedTitle(
       String originalTitle, bool isContentArabic) async {
-    if (_isArabicContent && !isContentArabic)
+    if (_isArabicContent && !isContentArabic) {
       return _translateText(originalTitle, toArabic: true);
-    if (!_isArabicContent && isContentArabic)
+    }
+    if (!_isArabicContent && isContentArabic) {
       return _translateText(originalTitle, toArabic: false);
+    }
     return originalTitle;
   }
 
@@ -106,8 +108,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _buildCompactStatsHeader()),
-
-        // ✅ ORIGINAL SECTIONS RESTORED
         _buildSection(
           emoji: '🌍',
           title: 'World News',
@@ -115,7 +115,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onViewAll: widget.onViewWorldNews,
           fallbackSource: 'World News',
         ),
-
         _buildSection(
           emoji: '🇹🇳',
           title: 'Tunisia Feed',
@@ -123,7 +122,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onViewAll: widget.onViewTunisia,
           fallbackSource: 'Tunisia',
         ),
-
         _buildSection(
           emoji: '🇲🇦',
           title: 'Morocco Feed',
@@ -131,7 +129,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onViewAll: widget.onViewMorocco,
           fallbackSource: 'Morocco',
         ),
-
         _buildSection(
           emoji: '🇩🇿',
           title: 'Algeria Feed',
@@ -139,7 +136,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onViewAll: widget.onViewAlgeria,
           fallbackSource: 'Algeria',
         ),
-
         _buildSection(
           emoji: '🇮🇷',
           title: 'Iran Feed',
@@ -147,24 +143,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onViewAll: widget.onViewIran,
           fallbackSource: 'Iran',
         ),
-
         const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
       ],
     );
   }
 
-  // --- HEADER ---
+  // --- HEADER (Responsive) ---
   Widget _buildCompactStatsHeader() {
+    final isMobile = ResponsiveHelper.isMobile(context);
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
-      padding: const EdgeInsets.all(20),
+      margin:
+          EdgeInsets.fromLTRB(isMobile ? 16 : 32, 24, isMobile ? 16 : 32, 16),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [cryptoOrange, cryptoGold],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 20 : 24),
         boxShadow: [
           BoxShadow(
             color: cryptoOrange.withOpacity(0.3),
@@ -173,82 +171,129 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'LIVE FEED',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white.withOpacity(0.9),
-                    letterSpacing: 2,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'LIVE FEED',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white.withOpacity(0.9),
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${widget.totalArticles} Articles',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildLangToggle(),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildQuickStat('🇹🇳', widget.tunisianCount),
+                    _buildQuickStat('🇲🇦', widget.moroccanCount),
+                    _buildQuickStat('🇩🇿', widget.algerianCount),
+                    _buildQuickStat('🇮🇷', widget.iranianCount),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LIVE FEED',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withOpacity(0.9),
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${widget.totalArticles} Articles',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${widget.totalArticles} Articles',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                _buildLangToggle(),
+                Row(
+                  children: [
+                    _buildQuickStat('🇹🇳', widget.tunisianCount),
+                    _buildQuickStat('🇲🇦', widget.moroccanCount),
+                    _buildQuickStat('🇩🇿', widget.algerianCount),
+                    _buildQuickStat('🇮🇷', widget.iranianCount),
+                  ],
                 ),
               ],
             ),
-          ),
+    );
+  }
 
-          // ✅ LANGUAGE TOGGLE BUTTON
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _toggleLanguage,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.translate, color: Colors.white, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      _isArabicContent ? 'AR' : 'EN',
-                      style: GoogleFonts.montserrat(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
+  Widget _buildLangToggle() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _toggleLanguage,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.translate, color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                _isArabicContent ? 'AR' : 'EN',
+                style: GoogleFonts.montserrat(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
                 ),
               ),
-            ),
-          ),
-
-          Row(
-            children: [
-              _buildQuickStat('🇹🇳', widget.tunisianCount),
-              _buildQuickStat('🇲🇦', widget.moroccanCount),
-              _buildQuickStat('🇩🇿', widget.algerianCount),
-              _buildQuickStat('🇮🇷', widget.iranianCount),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildQuickStat(String emoji, int count) {
     return Container(
-      margin: const EdgeInsets.only(left: 8),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.2),
@@ -256,6 +301,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         border: Border.all(color: Colors.white.withOpacity(0.3)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(emoji, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 6),
@@ -272,7 +318,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // --- SECTION BUILDER ---
+  // --- SECTION BUILDER (Responsive) ---
   Widget _buildSection({
     required String emoji,
     required String title,
@@ -280,9 +326,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required VoidCallback onViewAll,
     required String fallbackSource,
   }) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+        padding:
+            EdgeInsets.fromLTRB(isMobile ? 16 : 32, 16, isMobile ? 16 : 32, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -328,28 +377,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 20),
             if (articles.isNotEmpty)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 5,
-                    child:
-                        _buildMainArticleCard(articles.first, fallbackSource),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    flex: 4,
-                    child: Column(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 700) {
+                    return Column(
                       children: [
-                        if (articles.length > 1)
-                          _buildSideArticleCard(articles[1], fallbackSource),
-                        if (articles.length > 2) const SizedBox(height: 16),
-                        if (articles.length > 2)
-                          _buildSideArticleCard(articles[2], fallbackSource),
+                        _buildMainArticleCard(articles.first, fallbackSource),
+                        ...articles.skip(1).take(2).map((article) => Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: _buildSideArticleCard(
+                                  article, fallbackSource),
+                            )),
                       ],
-                    ),
-                  ),
-                ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: _buildMainArticleCard(
+                            articles.first, fallbackSource),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        flex: 4,
+                        child: Column(
+                          children: [
+                            if (articles.length > 1)
+                              _buildSideArticleCard(
+                                  articles[1], fallbackSource),
+                            if (articles.length > 2) const SizedBox(height: 16),
+                            if (articles.length > 2)
+                              _buildSideArticleCard(
+                                  articles[2], fallbackSource),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               )
             else
               _buildEmptyState(),
@@ -394,6 +461,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildMainArticleCard(RssItemModel article, String fallbackSource) {
     final bool hasArabicContent = _containsArabic(article.title);
     final bool useArabicStyle = _isArabicContent || hasArabicContent;
+    final isMobile = ResponsiveHelper.isMobile(context);
 
     final String displaySource = (article.source == null ||
             article.source!.isEmpty ||
@@ -404,7 +472,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return GestureDetector(
       onTap: () => _launchUrl(article.link),
       child: Container(
-        height: 320,
+        // ✅ FIX: Increased mobile height to 280 to prevent overflow
+        height: isMobile ? 280 : 320,
         decoration: BoxDecoration(
           color: cryptoCardBg,
           borderRadius: BorderRadius.circular(24),
@@ -427,7 +496,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ]))),
               ),
               Padding(
-                padding: const EdgeInsets.all(24.0),
+                // ✅ FIX: Slightly reduced padding on mobile for more text space
+                padding: EdgeInsets.all(isMobile ? 20.0 : 24.0),
                 child: Column(
                   crossAxisAlignment: useArabicStyle
                       ? CrossAxisAlignment.end
@@ -457,8 +527,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                     const Spacer(),
-
-                    // ✅ TRANSLATABLE TITLE
                     FutureBuilder<String>(
                         future:
                             _getProcessedTitle(article.title, hasArabicContent),
@@ -467,8 +535,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           return Text(text,
                               style: _getTextStyle(
                                   useArabicStyle,
-                                  const TextStyle(
-                                      fontSize: 20,
+                                  TextStyle(
+                                      fontSize: isMobile
+                                          ? 18
+                                          : 20, // Slightly smaller on mobile
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white,
                                       height: 1.4)),
@@ -478,7 +548,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   ? TextAlign.right
                                   : TextAlign.left);
                         }),
-
                     const SizedBox(height: 12),
                     Text(_getSnippet(article.description),
                         style: _getTextStyle(
@@ -516,6 +585,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildSideArticleCard(RssItemModel article, String fallbackSource) {
     final bool hasArabicContent = _containsArabic(article.title);
     final bool useArabicStyle = _isArabicContent || hasArabicContent;
+    final isMobile = ResponsiveHelper.isMobile(context);
 
     final String displaySource = (article.source == null ||
             article.source!.isEmpty ||
@@ -526,14 +596,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return GestureDetector(
       onTap: () => _launchUrl(article.link),
       child: Container(
-        height: 152,
+        // ✅ FIX: Increased mobile height from 120 to 150 to prevent the 2px overflow
+        height: isMobile ? 150 : 152,
         decoration: BoxDecoration(
           color: cryptoCardBg,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: cryptoGold.withOpacity(0.1)),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          // ✅ FIX: Reduced mobile padding to 16 to optimize space
+          padding: EdgeInsets.all(isMobile ? 16.0 : 20.0),
           child: Column(
             crossAxisAlignment: useArabicStyle
                 ? CrossAxisAlignment.end
@@ -544,9 +616,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: cryptoGold)),
-              const SizedBox(height: 10),
-
-              // ✅ TRANSLATABLE TITLE
+              const SizedBox(height: 8),
               FutureBuilder<String>(
                   future: _getProcessedTitle(article.title, hasArabicContent),
                   builder: (context, snapshot) {
@@ -554,8 +624,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     return Text(text,
                         style: _getTextStyle(
                             useArabicStyle,
-                            const TextStyle(
-                                fontSize: 14,
+                            TextStyle(
+                                fontSize: isMobile
+                                    ? 13
+                                    : 14, // Slightly smaller on mobile
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
                                 height: 1.4)),
@@ -564,7 +636,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         textAlign:
                             useArabicStyle ? TextAlign.right : TextAlign.left);
                   }),
-
               const Spacer(),
               Row(
                 children: [
