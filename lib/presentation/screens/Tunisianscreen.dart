@@ -1,20 +1,26 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:news_app/core/constants/dashboard_constants.dart'; // Import Constants
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart' as intl;
+import 'package:news_app/core/constants/dashboard_constants.dart';
+import 'package:news_app/core/utils/responsive.dart';
 import 'package:news_app/data/datasources/rss_remote_datasource.dart';
+import 'package:news_app/data/grok_service.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/presentation/screens/source_detail_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class TunisianNewsTheme {
-  static const Color cryptoDarkBg = Color(0xFF0B0E14);
-  static const Color cryptoCardBg = Color(0xFF151A25);
-  static const Color cryptoOrange = Color(0xFFFF8C00);
-  static const Color cryptoGold = Color(0xFFFFD700);
-  static const Color textGrey = Color(0xFF6E7681);
-}
+// --- Constants ---
+const Color cryptoDarkBg = Color(0xFF0B0E14);
+const Color cryptoCardBg = Color(0xFF151A25);
+const Color cryptoOrange = Color(0xFFFF8C00);
+const Color cryptoGold = Color(0xFFFFD700);
+const Color textGrey = Color(0xFF6E7681);
 
 class TunisianNewsScreen extends StatefulWidget {
   final bool isEmbedded;
@@ -27,8 +33,7 @@ class TunisianNewsScreen extends StatefulWidget {
 class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  // ✅ UPDATED: Get sources directly from Constants
-  // This prevents defining them twice and ensures consistency
+  // Sources from Constants
   List<NewsSource> get _rssSources => DashboardConstants.allTunisianSources;
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
@@ -37,41 +42,74 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   String? _errorMessage;
   final Map<String, String> _sourceErrors = {};
 
+  // --- NEW: Language & Translation State ---
+  bool _isArabicContent = false;
+  final Map<String, String> _translationCache = {};
+  final Set<String> _loadingTranslations = {};
+
+  // --- NEW: Source Map for consistent naming ---
+  late final Map<String, String> _urlSourceMap;
+
   @override
   void initState() {
     super.initState();
+    _initializeSourceMap();
     _loadDashboardData();
   }
 
+  // --- INITIALIZATION FROM CONSTANTS ---
+  void _initializeSourceMap() {
+    _urlSourceMap = {};
+
+    // Only need to map Tunisian sources for this screen
+    for (final item in DashboardConstants.tunisianFeatured) {
+      final name = item['name'];
+      final url = item['url'];
+      if (name == null || url == null) continue;
+
+      // Key from Name
+      _urlSourceMap[name.toLowerCase().replaceAll(' ', '')] = name;
+
+      // Key from URL
+      try {
+        final uri = Uri.parse(url);
+        String host = uri.host.replaceFirst('www.', '');
+        _urlSourceMap[host] = name;
+        final domainPart = host.split('.').first;
+        if (domainPart.length > 2) {
+          _urlSourceMap[domainPart] = name;
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+  }
+
+  // --- DATA LOADING ---
+
   Future<void> _loadDashboardData() async {
-    // Don't clear data immediately! Keep showing old data while fetching.
     setState(() {
       _isGlobalLoading = true;
       _errorMessage = null;
       _sourceErrors.clear();
       _loadingIndices.clear();
-      // REMOVED: _dashboardData.clear();
     });
 
     final fetchTasks = _rssSources.asMap().entries.map((entry) {
       return _fetchSource(entry.key, entry.value);
     }).toList();
 
-    Future.wait(fetchTasks).then((_) {
-      if (mounted) {
-        setState(() {
-          _isGlobalLoading = false;
-        });
-      }
-    });
+    await Future.wait(fetchTasks);
+
+    if (mounted) {
+      setState(() {
+        _isGlobalLoading = false;
+      });
+    }
   }
 
   Future<void> _fetchSource(int index, NewsSource source) async {
-    if (mounted) {
-      setState(() {
-        _loadingIndices.add(index);
-      });
-    }
+    if (mounted) setState(() => _loadingIndices.add(index));
 
     final cleanUrl = source.url.trim();
     if (cleanUrl.isEmpty) {
@@ -100,9 +138,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       if (mounted) {
         setState(() {
           _loadingIndices.remove(index);
-          if (items.isNotEmpty) {
-            _dashboardData[index] = items;
-          }
+          if (items.isNotEmpty) _dashboardData[index] = items;
         });
       }
     } catch (e) {
@@ -116,34 +152,130 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     }
   }
 
-  Future<void> _openArticle(String url) async {
-    if (url.isEmpty) return;
-    String cleanUrl = url.trim();
-    if (!cleanUrl.startsWith('http')) {
-      cleanUrl = 'https://$cleanUrl';
+  // --- LANGUAGE LOGIC ---
+
+  void _toggleLanguage() {
+    _isArabicContent = !_isArabicContent;
+    setState(() {});
+  }
+
+  String _getDisplayTitle(RssItemModel article) {
+    final original = article.title;
+    if (!_isArabicContent) return original;
+
+    if (_translationCache.containsKey(original)) {
+      return _translationCache[original]!;
     }
 
+    if (!_loadingTranslations.contains(original)) {
+      _loadTranslation(original);
+    }
+    return original;
+  }
+
+  Future<void> _loadTranslation(String text) async {
+    if (text.isEmpty) return;
+    _loadingTranslations.add(text);
+
     try {
-      final uri = Uri.parse(cleanUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        _showError('Could not open link');
+      final translated = await _translateText(text, toArabic: true);
+      if (translated != text && mounted) {
+        setState(() {
+          _translationCache[text] = translated;
+        });
       }
-    } catch (e) {
-      _showError('Cannot open article: $e');
+    } finally {
+      _loadingTranslations.remove(text);
     }
   }
 
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.montserrat()),
-        backgroundColor: Colors.red.shade800,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<String> _translateText(String text, {bool toArabic = true}) async {
+    if (text.isEmpty) return text;
+    if (_translationCache.containsKey(text)) return _translationCache[text]!;
+
+    try {
+      final sourceLang = toArabic ? 'en' : 'ar';
+      final targetLang = toArabic ? 'ar' : 'en';
+
+      final url = Uri.parse(
+        'https://translate.googleapis.com/translate_a/single?client=gtx&sl=$sourceLang&tl=$targetLang&dt=t&q=${Uri.encodeComponent(text)}',
+      );
+
+      final response = await http.get(url).timeout(const Duration(seconds: 2));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data != null && data[0] != null && data[0] is List) {
+          final translatedParts =
+              (data[0] as List).map((e) => (e as List).first.toString()).join();
+          _translationCache[text] = translatedParts;
+          return translatedParts;
+        }
+      }
+    } catch (e) {
+      // Fail silently
+    }
+    return text;
+  }
+
+  // --- SOURCE EXTRACTION HELPER ---
+  String _getDisplaySource(RssItemModel article) {
+    if (article.source != null &&
+        article.source!.isNotEmpty &&
+        article.source != 'Unknown' &&
+        !_isGenericSourceName(article.source!)) {
+      return _cleanSourceName(article.source!);
+    }
+
+    if (article.link.isNotEmpty) {
+      final urlSource = _extractSourceFromUrl(article.link);
+      if (urlSource != null) return urlSource;
+    }
+
+    return 'Unknown';
+  }
+
+  bool _isGenericSourceName(String name) {
+    final genericNames = [
+      'world news',
+      'tunisia feed',
+      'morocco feed',
+      'algeria feed',
+      'iran feed',
+      'news',
+      'feed',
+      'articles',
+      'unknown'
+    ];
+    return genericNames.any((generic) => name.toLowerCase().contains(generic));
+  }
+
+  String _cleanSourceName(String name) {
+    return name
+        .replaceAll(RegExp(r'\s*-\s*.*$'), '')
+        .replaceAll(RegExp(r'\s*\|.*$'), '')
+        .replaceAll(RegExp(r'\s*RSS.*$', caseSensitive: false), '')
+        .trim();
+  }
+
+  String? _extractSourceFromUrl(String url) {
+    final lowerUrl = url.toLowerCase();
+    for (final entry in _urlSourceMap.entries) {
+      if (lowerUrl.contains(entry.key.toLowerCase())) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  // --- HELPERS ---
+
+  Future<void> _openArticle(String url) async {
+    if (url.isEmpty) return;
+    final uri = Uri.parse(url.trim());
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Future<void> _copyLink(String url) async {
@@ -152,24 +284,33 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Link copied', style: GoogleFonts.montserrat()),
-        backgroundColor: TunisianNewsTheme.cryptoOrange,
+        backgroundColor: cryptoOrange,
         duration: const Duration(seconds: 1),
       ),
     );
   }
 
+  TextStyle _getTextStyle(bool isArabic, TextStyle style) {
+    return isArabic
+        ? GoogleFonts.notoKufiArabic(textStyle: style)
+        : GoogleFonts.montserrat(textStyle: style);
+  }
+
+  bool _containsArabic(String text) =>
+      RegExp(r'[\u0600-\u06FF]').hasMatch(text);
+
+  // --- BUILD ---
+
   @override
   Widget build(BuildContext context) {
     final content = _buildContent();
 
-    if (widget.isEmbedded) {
-      return content;
-    }
+    if (widget.isEmbedded) return content;
 
     return Scaffold(
-      backgroundColor: TunisianNewsTheme.cryptoDarkBg,
+      backgroundColor: cryptoDarkBg,
       appBar: AppBar(
-        backgroundColor: TunisianNewsTheme.cryptoDarkBg,
+        backgroundColor: cryptoDarkBg,
         elevation: 0,
         title: Text(
           'Tunisia Feed',
@@ -188,8 +329,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                   const Icon(Icons.warning_amber_rounded, color: Colors.orange),
             ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded,
-                color: TunisianNewsTheme.cryptoOrange),
+            icon: const Icon(Icons.refresh_rounded, color: cryptoOrange),
             onPressed: _isGlobalLoading ? null : _loadDashboardData,
             tooltip: 'Refresh',
           ),
@@ -225,74 +365,94 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   Widget _buildStatusHeader() {
     return Container(
       margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            TunisianNewsTheme.cryptoOrange,
-            TunisianNewsTheme.cryptoGold
-          ],
+          colors: [cryptoOrange, cryptoGold],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: TunisianNewsTheme.cryptoOrange.withOpacity(0.3),
-            blurRadius: 30,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            child: Row(
               children: [
-                Text(
-                  'TUNISIA AGGREGATOR',
-                  style: GoogleFonts.robotoMono(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white.withOpacity(0.9),
-                    letterSpacing: 2,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('TUNISIA AGGREGATOR',
+                          style: GoogleFonts.robotoMono(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white.withOpacity(0.9),
+                              letterSpacing: 2)),
+                      const SizedBox(height: 4),
+                      Text('${_rssSources.length} Active Sources',
+                          style: GoogleFonts.montserrat(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white)),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_rssSources.length} Active Sources',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+                _buildLangToggle(),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.rss_feed, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  '${_dashboardData.length}',
-                  style: GoogleFonts.montserrat(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
+            height: 50,
+            width: double.infinity,
+            color: Colors.black.withOpacity(0.15),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.rss_feed, color: Colors.white54, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_dashboardData.length} Connected Feeds',
+                      style: GoogleFonts.montserrat(
+                          color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
+          const SizedBox(height: 10),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLangToggle() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _toggleLanguage,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.3))),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.translate, color: Colors.white, size: 16),
+            const SizedBox(width: 6),
+            Text(_isArabicContent ? 'AR' : 'EN',
+                style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 14)),
+          ]),
+        ),
       ),
     );
   }
@@ -303,7 +463,8 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     required bool isLoading,
     required bool hasError,
   }) {
-    final isArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(source.name);
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isSourceArabic = _containsArabic(source.name);
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -316,13 +477,10 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [
-                      TunisianNewsTheme.cryptoOrange,
-                      TunisianNewsTheme.cryptoGold
-                    ]),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(isArabic ? '🇹🇳' : '📰',
+                      gradient: const LinearGradient(
+                          colors: [cryptoOrange, cryptoGold]),
+                      borderRadius: BorderRadius.circular(16)),
+                  child: Text(isSourceArabic ? '🇹🇳' : '📰',
                       style: const TextStyle(fontSize: 22)),
                 ),
                 const SizedBox(width: 16),
@@ -332,24 +490,21 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                     children: [
                       Text(
                         source.name,
-                        style: (isArabic
-                                ? GoogleFonts.notoKufiArabic()
-                                : GoogleFonts.montserrat())
-                            .copyWith(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                        style: _getTextStyle(
+                            isSourceArabic,
+                            const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            )),
                       ),
                       const SizedBox(height: 2),
                       Container(
                         height: 2,
                         width: 60,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [
-                            TunisianNewsTheme.cryptoOrange,
-                            TunisianNewsTheme.cryptoGold
-                          ]),
+                          gradient: const LinearGradient(
+                              colors: [cryptoOrange, cryptoGold]),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       )
@@ -357,67 +512,47 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                   ),
                 ),
                 if (items.isNotEmpty && !isLoading && !hasError)
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SourceDetailScreen(
-                            sourceName: source.name,
-                            sourceUrl: source.url.trim(),
-                            sourceType: source.type,
-                            selectors: source.selectors,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: TunisianNewsTheme.cryptoOrange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: TunisianNewsTheme.cryptoOrange
-                                .withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('View All',
-                              style: GoogleFonts.montserrat(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: TunisianNewsTheme.cryptoOrange)),
-                          const SizedBox(width: 6),
-                          Icon(Icons.arrow_forward_rounded,
-                              size: 14, color: TunisianNewsTheme.cryptoOrange),
-                        ],
-                      ),
-                    ),
-                  ),
+                  _buildViewAllButton(source),
               ],
             ),
             const SizedBox(height: 20),
             if (isLoading)
               _buildLoadingPlaceholder()
             else if (items.isNotEmpty)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 5, child: _buildMainArticleCard(items.first)),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    flex: 4,
-                    child: Column(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 700) {
+                    return Column(
                       children: [
-                        if (items.length > 1) _buildSideArticleCard(items[1]),
-                        if (items.length > 2) const SizedBox(height: 16),
-                        if (items.length > 2) _buildSideArticleCard(items[2]),
+                        _buildMainArticleCard(items.first),
+                        ...items.skip(1).take(2).map((article) => Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: _buildSideArticleCard(article),
+                            )),
                       ],
-                    ),
-                  ),
-                ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                          flex: 5, child: _buildMainArticleCard(items.first)),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        flex: 4,
+                        child: Column(
+                          children: [
+                            if (items.length > 1)
+                              _buildSideArticleCard(items[1]),
+                            if (items.length > 2) const SizedBox(height: 16),
+                            if (items.length > 2)
+                              _buildSideArticleCard(items[2]),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               )
             else
               _buildEmptyErrorState(hasError),
@@ -427,239 +562,53 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     );
   }
 
+  Widget _buildViewAllButton(NewsSource source) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SourceDetailScreen(
+                sourceName: source.name,
+                sourceUrl: source.url.trim(),
+                sourceType: source.type,
+                selectors: source.selectors,
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: cryptoOrange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: cryptoOrange.withOpacity(0.3)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('View All',
+                style: GoogleFonts.montserrat(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: cryptoOrange)),
+            const SizedBox(width: 6),
+            Icon(Icons.arrow_forward_rounded, size: 14, color: cryptoOrange),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Widget _buildLoadingPlaceholder() {
     return Container(
-      height: 340,
+      height: 300,
       decoration: BoxDecoration(
-        color: TunisianNewsTheme.cryptoCardBg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(
-                color: TunisianNewsTheme.cryptoOrange),
-            const SizedBox(height: 16),
-            Text('Fetching Feed...',
-                style: GoogleFonts.montserrat(
-                    color: Colors.white54, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMainArticleCard(RssItemModel article) {
-    final sourceName = article.source ?? 'News';
-    final bool hasArabic = _containsArabic(article.title);
-
-    return GestureDetector(
-      onTap: () => _openArticle(article.link),
-      child: Container(
-        height: 340,
-        decoration: BoxDecoration(
-          color: TunisianNewsTheme.cryptoCardBg,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-              color: TunisianNewsTheme.cryptoOrange.withOpacity(0.2)),
-          boxShadow: [
-            BoxShadow(
-              color: TunisianNewsTheme.cryptoOrange.withOpacity(0.05),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
-            children: [
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: 5,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        TunisianNewsTheme.cryptoOrange,
-                        TunisianNewsTheme.cryptoGold.withOpacity(0.5)
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: hasArabic
-                      ? CrossAxisAlignment.end
-                      : CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      textDirection:
-                          hasArabic ? TextDirection.rtl : TextDirection.ltr,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: TunisianNewsTheme.cryptoOrange
-                                .withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            sourceName.toUpperCase(),
-                            style: GoogleFonts.montserrat(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: TunisianNewsTheme.cryptoOrange),
-                          ),
-                        ),
-                        const Spacer(),
-                        Icon(Icons.access_time_rounded,
-                            size: 14, color: Colors.white54),
-                        const SizedBox(width: 6),
-                        Text(_formatTimeAgo(article.publishedAt),
-                            style: GoogleFonts.montserrat(
-                                fontSize: 12, color: Colors.white54)),
-                      ],
-                    ),
-                    const Spacer(),
-                    Text(
-                      article.title,
-                      style: _getTextStyle(
-                          hasArabic,
-                          const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              height: 1.4)),
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: hasArabic ? TextAlign.right : TextAlign.left,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _getSnippet(article.description),
-                      style: _getTextStyle(
-                          hasArabic,
-                          TextStyle(
-                              fontSize: 13,
-                              color: Colors.white.withOpacity(0.6),
-                              height: 1.5)),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: hasArabic ? TextAlign.right : TextAlign.left,
-                    ),
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: hasArabic
-                          ? Alignment.centerLeft
-                          : Alignment.centerRight,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color:
-                              TunisianNewsTheme.cryptoOrange.withOpacity(0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.arrow_outward_rounded,
-                            color: TunisianNewsTheme.cryptoOrange, size: 18),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSideArticleCard(RssItemModel article) {
-    final bool hasArabic = _containsArabic(article.title);
-    return GestureDetector(
-      onTap: () => _openArticle(article.link),
-      onLongPress: () => _copyLink(article.link),
-      child: Container(
-        height: 162,
-        decoration: BoxDecoration(
-          color: TunisianNewsTheme.cryptoCardBg,
-          borderRadius: BorderRadius.circular(20),
-          border:
-              Border.all(color: TunisianNewsTheme.cryptoGold.withOpacity(0.1)),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            children: [
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  height: 3,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-                      TunisianNewsTheme.cryptoGold.withOpacity(0.5),
-                      Colors.transparent
-                    ]),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: hasArabic
-                      ? CrossAxisAlignment.end
-                      : CrossAxisAlignment.start,
-                  children: [
-                    Text(_formatTimeAgo(article.publishedAt),
-                        style: GoogleFonts.montserrat(
-                            fontSize: 11, color: TunisianNewsTheme.textGrey)),
-                    const SizedBox(height: 10),
-                    Text(
-                      article.title,
-                      style: _getTextStyle(
-                          hasArabic,
-                          const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                              height: 1.4)),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: hasArabic ? TextAlign.right : TextAlign.left,
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        Text('Read',
-                            style: GoogleFonts.montserrat(
-                                fontSize: 10,
-                                color: TunisianNewsTheme.cryptoGold
-                                    .withOpacity(0.7))),
-                        const SizedBox(width: 4),
-                        Icon(Icons.arrow_right_alt,
-                            size: 12,
-                            color:
-                                TunisianNewsTheme.cryptoGold.withOpacity(0.7)),
-                      ],
-                    )
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+          color: cryptoCardBg, borderRadius: BorderRadius.circular(24)),
+      child: const Center(
+          child:
+              CircularProgressIndicator(color: cryptoOrange, strokeWidth: 2)),
     );
   }
 
@@ -667,7 +616,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: TunisianNewsTheme.cryptoCardBg,
+        color: cryptoCardBg,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
             color: (hasError ? Colors.red : Colors.white).withOpacity(0.1)),
@@ -679,19 +628,307 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     );
   }
 
-  // --- HELPERS ---
-  TextStyle _getTextStyle(bool isArabic, TextStyle style) {
-    if (isArabic) {
-      return GoogleFonts.notoKufiArabic(textStyle: style);
+  // --- CARD WRAPPERS ---
+
+  Widget _buildMainArticleCard(RssItemModel article) {
+    return _ExpandableArticleCard(
+      article: article,
+      isArabic: _isArabicContent,
+      getDisplayTitle: _getDisplayTitle,
+      containsArabic: _containsArabic,
+      getTextStyle: _getTextStyle,
+      getDisplaySource: _getDisplaySource,
+    );
+  }
+
+  Widget _buildSideArticleCard(RssItemModel article) {
+    return _ExpandableSideArticleCard(
+      article: article,
+      isArabic: _isArabicContent,
+      getDisplayTitle: _getDisplayTitle,
+      containsArabic: _containsArabic,
+      getTextStyle: _getTextStyle,
+      getDisplaySource: _getDisplaySource,
+    );
+  }
+}
+
+// --- WIDGET 1: Main Article Card ---
+
+class _ExpandableArticleCard extends StatefulWidget {
+  final RssItemModel article;
+  final bool isArabic;
+  final String Function(RssItemModel) getDisplayTitle;
+  final bool Function(String) containsArabic;
+  final TextStyle Function(bool, TextStyle) getTextStyle;
+  final String Function(RssItemModel) getDisplaySource;
+
+  const _ExpandableArticleCard({
+    required this.article,
+    required this.isArabic,
+    required this.getDisplayTitle,
+    required this.containsArabic,
+    required this.getTextStyle,
+    required this.getDisplaySource,
+  });
+
+  @override
+  State<_ExpandableArticleCard> createState() => _ExpandableArticleCardState();
+}
+
+class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
+    with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+  bool _isLoading = false;
+  String? _summary;
+
+  late AnimationController _controller;
+  late Animation<double> _iconTurn;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleRecap() async {
+    if (_isLoading) return;
+
+    if (_isExpanded) {
+      setState(() => _isExpanded = false);
+      _controller.reverse();
+      return;
+    }
+
+    setState(() {
+      _isExpanded = true;
+      _isLoading = true;
+    });
+    _controller.forward();
+
+    if (_summary == null) {
+      try {
+        final result = await MistralService().summarizeArticle(
+          widget.article.title,
+          widget.article.description ?? '',
+          isArabic: widget.isArabic,
+        );
+        if (mounted)
+          setState(() {
+            _summary = result;
+            _isLoading = false;
+          });
+      } catch (e) {
+        if (mounted)
+          setState(() {
+            _summary = "Error generating summary.";
+            _isLoading = false;
+          });
+      }
     } else {
-      return GoogleFonts.montserrat(textStyle: style);
+      setState(() => _isLoading = false);
     }
   }
 
-  bool _containsArabic(String text) {
-    if (text.isEmpty) return false;
-    final arabicRegex = RegExp(r'[\u0600-\u06FF]');
-    return arabicRegex.hasMatch(text);
+  @override
+  Widget build(BuildContext context) {
+    final bool hasArabicContent = widget.containsArabic(widget.article.title);
+    final String displayTitle = widget.getDisplayTitle(widget.article);
+    final bool useArabicStyle = widget.isArabic || hasArabicContent;
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final String displaySource = widget.getDisplaySource(widget.article);
+
+    return GestureDetector(
+      onTap: () async {
+        final uri = Uri.parse(widget.article.link);
+        if (await canLaunchUrl(uri))
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        height: _isExpanded ? (isMobile ? 420 : 460) : (isMobile ? 280 : 320),
+        decoration: BoxDecoration(
+            color: cryptoCardBg,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: cryptoOrange.withOpacity(0.2))),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            children: [
+              Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                      width: 5,
+                      decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: [
+                        cryptoOrange,
+                        cryptoGold.withOpacity(0.5)
+                      ])))),
+              Padding(
+                padding: EdgeInsets.all(isMobile ? 20.0 : 24.0),
+                child: Column(
+                  crossAxisAlignment: useArabicStyle
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(children: [
+                      Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                              color: cryptoOrange.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8)),
+                          child: Text(displaySource.toUpperCase(),
+                              style: GoogleFonts.montserrat(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: cryptoOrange))),
+                      const Spacer(),
+                      Icon(Icons.access_time_rounded,
+                          size: 14, color: Colors.white54),
+                      const SizedBox(width: 6),
+                      Text(_formatTimeAgo(widget.article.publishedAt),
+                          style: GoogleFonts.montserrat(
+                              fontSize: 12, color: Colors.white54)),
+                    ]),
+                    const SizedBox(height: 12),
+                    Text(displayTitle,
+                        style: widget.getTextStyle(
+                            useArabicStyle,
+                            TextStyle(
+                                fontSize: isMobile ? 18 : 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                height: 1.4)),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign:
+                            useArabicStyle ? TextAlign.right : TextAlign.left),
+                    if (!_isExpanded) ...[
+                      const SizedBox(height: 12),
+                      Text(_getSnippet(widget.article.description),
+                          style: widget.getTextStyle(
+                              useArabicStyle,
+                              TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white.withOpacity(0.6),
+                                  height: 1.5)),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: useArabicStyle
+                              ? TextAlign.right
+                              : TextAlign.left),
+                      const Expanded(child: SizedBox()),
+                    ],
+                    if (_isExpanded) ...[
+                      const SizedBox(height: 16),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.05))),
+                          child: _isLoading
+                              ? Center(
+                                  child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: cryptoGold)))
+                              : Text(_summary ?? "Unable to generate summary.",
+                                  style: widget.getTextStyle(
+                                      useArabicStyle,
+                                      TextStyle(
+                                          fontSize: 13,
+                                          color: cryptoGold.withOpacity(0.9),
+                                          height: 1.5,
+                                          fontStyle: FontStyle.italic)),
+                                  maxLines: 5,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: useArabicStyle
+                                      ? TextAlign.right
+                                      : TextAlign.left),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    Row(
+                      children: [
+                        const Spacer(),
+                        Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                                onTap: _handleRecap,
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                            colors: _isExpanded
+                                                ? [
+                                                    Colors.deepPurpleAccent,
+                                                    Colors.purple
+                                                  ]
+                                                : [cryptoGold, cryptoOrange]),
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                              color: (_isExpanded
+                                                      ? Colors.purple
+                                                      : cryptoOrange)
+                                                  .withOpacity(0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2))
+                                        ]),
+                                    child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          RotationTransition(
+                                              turns: _iconTurn,
+                                              child: const Icon(
+                                                  Icons.auto_awesome,
+                                                  size: 16,
+                                                  color: Colors.white)),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                              _isExpanded
+                                                  ? 'Close'
+                                                  : 'AI Recap',
+                                              style: GoogleFonts.montserrat(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white))
+                                        ])))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String _formatTimeAgo(DateTime? date) {
@@ -701,7 +938,8 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     if (diff.inMinutes < 1) return 'Just now';
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
     if (diff.inDays < 1) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return intl.DateFormat('MMM d').format(date);
   }
 
   String _getSnippet(String? description) {
@@ -710,5 +948,260 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         .replaceAll(RegExp(r'<[^>]*>'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+}
+
+// --- WIDGET 2: Side Article Card ---
+
+class _ExpandableSideArticleCard extends StatefulWidget {
+  final RssItemModel article;
+  final bool isArabic;
+  final String Function(RssItemModel) getDisplayTitle;
+  final bool Function(String) containsArabic;
+  final TextStyle Function(bool, TextStyle) getTextStyle;
+  final String Function(RssItemModel) getDisplaySource;
+
+  const _ExpandableSideArticleCard({
+    required this.article,
+    required this.isArabic,
+    required this.getDisplayTitle,
+    required this.containsArabic,
+    required this.getTextStyle,
+    required this.getDisplaySource,
+  });
+
+  @override
+  State<_ExpandableSideArticleCard> createState() =>
+      _ExpandableSideArticleCardState();
+}
+
+class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
+    with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+  bool _isLoading = false;
+  String? _summary;
+
+  late AnimationController _controller;
+  late Animation<double> _iconTurn;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleRecap() async {
+    if (_isLoading) return;
+
+    if (_isExpanded) {
+      setState(() => _isExpanded = false);
+      _controller.reverse();
+      return;
+    }
+
+    setState(() {
+      _isExpanded = true;
+      _isLoading = true;
+    });
+    _controller.forward();
+
+    if (_summary == null) {
+      try {
+        final result = await MistralService().summarizeArticle(
+          widget.article.title,
+          widget.article.description ?? '',
+          isArabic: widget.isArabic,
+        );
+        if (mounted)
+          setState(() {
+            _summary = result;
+            _isLoading = false;
+          });
+      } catch (e) {
+        if (mounted)
+          setState(() {
+            _summary = "Error generating summary.";
+            _isLoading = false;
+          });
+      }
+    } else {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasArabicContent = widget.containsArabic(widget.article.title);
+    final String displayTitle = widget.getDisplayTitle(widget.article);
+    final bool useArabicStyle = widget.isArabic || hasArabicContent;
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final String displaySource = widget.getDisplaySource(widget.article);
+
+    return GestureDetector(
+      onTap: () async {
+        final uri = Uri.parse(widget.article.link);
+        if (await canLaunchUrl(uri))
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        height: _isExpanded ? (isMobile ? 380 : 400) : (isMobile ? 150 : 152),
+        decoration: BoxDecoration(
+            color: cryptoCardBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: cryptoGold.withOpacity(0.1))),
+        child: Padding(
+          padding: EdgeInsets.all(isMobile ? 16.0 : 20.0),
+          child: Column(
+            crossAxisAlignment: useArabicStyle
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Text(displaySource.toUpperCase(),
+                      style: GoogleFonts.montserrat(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: cryptoGold)),
+                  const Spacer(),
+                  Icon(Icons.access_time_rounded,
+                      size: 12, color: Colors.white38),
+                  const SizedBox(width: 4),
+                  Text(_formatTimeAgo(widget.article.publishedAt),
+                      style: GoogleFonts.montserrat(
+                          fontSize: 10, color: Colors.white38)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(displayTitle,
+                  style: widget.getTextStyle(
+                      useArabicStyle,
+                      TextStyle(
+                          fontSize: isMobile ? 13 : 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          height: 1.4)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: useArabicStyle ? TextAlign.right : TextAlign.left),
+              if (!_isExpanded) const Expanded(child: SizedBox()),
+              if (_isExpanded) ...[
+                const SizedBox(height: 12),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.05))),
+                    child: _isLoading
+                        ? const Center(
+                            child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 1.5, color: cryptoGold)))
+                        : Text(_summary ?? "Unable to generate summary.",
+                            style: widget.getTextStyle(
+                                useArabicStyle,
+                                TextStyle(
+                                    fontSize: 12,
+                                    color: cryptoGold.withOpacity(0.9),
+                                    height: 1.4,
+                                    fontStyle: FontStyle.italic)),
+                            maxLines: 6,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: useArabicStyle
+                                ? TextAlign.right
+                                : TextAlign.left),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Row(
+                children: [
+                  if (!_isExpanded)
+                    Icon(Icons.arrow_right_alt,
+                        size: 16, color: cryptoGold.withOpacity(0.5)),
+                  if (!_isExpanded) const Spacer(),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _handleRecap,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                                colors: _isExpanded
+                                    ? [Colors.deepPurpleAccent, Colors.purple]
+                                    : [
+                                        cryptoGold.withOpacity(0.8),
+                                        cryptoOrange.withOpacity(0.8)
+                                      ]),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: (_isExpanded
+                                          ? Colors.purple
+                                          : cryptoOrange)
+                                      .withOpacity(0.2),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1))
+                            ]),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RotationTransition(
+                                turns: _iconTurn,
+                                child: const Icon(Icons.auto_awesome,
+                                    size: 14, color: Colors.white)),
+                            const SizedBox(width: 6),
+                            Text(_isExpanded ? 'Close' : 'Recap',
+                                style: GoogleFonts.montserrat(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime? date) {
+    if (date == null) return 'Just now';
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    if (diff.inDays < 1) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return intl.DateFormat('MMM d').format(date);
   }
 }

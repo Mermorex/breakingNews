@@ -8,7 +8,6 @@ class DashboardConstants {
 
   static const List<Map<String, String>> tunisianFeatured = [
     {'name': 'Mosaïque FM', 'url': 'https://www.mosaiquefm.net/ar/rss'},
-    {'name': 'tunisie-news', 'url': 'https://tunisie-news.com/feed/'},
     {'name': 'وزارة الداخلية', 'url': 'https://www.interieur.gov.tn/ar/feed'},
   ];
 
@@ -124,20 +123,6 @@ class DashboardConstants {
           'desc': '',
           'date': '.date, time, .published-date',
           'image': 'img, .article-image img',
-        },
-      ),
-      NewsSource(
-        name: 'rassdtunisia',
-        url: 'https://rassdtunisia.net/category/news',
-        type: SourceType.scrapable,
-        selectors: {
-          'item': 'article, .post, .entry',
-          'title': 'h2.entry-title a, h1.entry-title',
-          'link': 'h2.entry-title a[href], h1 a[href]',
-          'desc': '.entry-summary p, .post-excerpt',
-          'date':
-              '.entry-date, time.entry-date, .published, .posted-on, .byline, .entry-meta',
-          'image': 'img.wp-post-image, .post-thumbnail img',
         },
       ),
     ];

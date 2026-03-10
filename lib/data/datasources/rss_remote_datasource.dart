@@ -8,8 +8,9 @@ import '../models/rss_item_model.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
 class RssRemoteDataSource {
-  static const Duration _connectTimeout = Duration(seconds: 5);
-  static const Duration _globalTimeout = Duration(seconds: 6);
+  // Increased timeouts for deployed environments
+  static const Duration _connectTimeout = Duration(seconds: 8);
+  static const Duration _globalTimeout = Duration(seconds: 10);
 
   // CACHE: Prevents 429 Rate Limit errors on refresh
   static const Duration _cacheDuration = Duration(minutes: 5);
@@ -17,21 +18,28 @@ class RssRemoteDataSource {
 
   Map<String, String> _getHeaders() {
     if (kIsWeb) {
-      return {'Accept': 'application/rss+xml, application/xml, text/xml, */*'};
+      // Web browsers handle User-Agent automatically, but we can send Accept
+      return {
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+      };
     } else {
+      // Mobile/Desktop: Spoof a real browser to bypass bot filters (Fixes Express FM)
       return {
         'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
       };
     }
   }
 
   /// Main RSS Fetcher with Caching and Race Condition
+  /// Default limit updated to 4
   Future<List<RssItemModel>> fetchRssFeed(
     String url, {
     String? sourceName,
-    int limit = 10,
+    int limit = 4, // UPDATED: Default limit set to 4
     bool forceRefresh = false,
   }) async {
     final name = sourceName ?? 'Unknown';
@@ -51,14 +59,16 @@ class RssRemoteDataSource {
       final List<Future<List<RssItemModel>>> futures = [];
 
       // 2. Direct Fetch (Mobile/Desktop only)
+      // This works on localhost, but often fails on deploy if IP is blocked
       if (!kIsWeb) {
         futures.add(_tryDirectFetch(cleanUrl, name, limit));
       }
 
-      // 3. Proxy Fetches
+      // 3. Proxy Fetches (Crucial for Deployed Web & if Direct Fetch fails)
+      // We race these to see which one responds first
       final proxies = [
         'https://api.allorigins.win/raw?url=',
-        'https://api.codetabs.com/v1/proxy?quest=', // Reliable backup
+        'https://api.codetabs.com/v1/proxy?quest=',
         'https://corsproxy.io/?',
       ];
 
@@ -74,7 +84,7 @@ class RssRemoteDataSource {
       final results = await _raceSuccess(futures)
           .timeout(_globalTimeout, onTimeout: () => []);
 
-      // 4. FALLBACK
+      // 4. FALLBACK (Last resort)
       List<RssItemModel> finalItems = results;
       if (finalItems.isEmpty) {
         finalItems = await _fetchViaRss2Json(cleanUrl, name, limit);
@@ -104,7 +114,7 @@ class RssRemoteDataSource {
     String url,
     Map<String, String> selectors, {
     String? sourceName,
-    int limit = 10,
+    int limit = 4, // UPDATED: Default limit set to 4
   }) async {
     final name = sourceName ?? 'Unknown';
     final cleanUrl = url.trim();
@@ -268,7 +278,9 @@ class RssRemoteDataSource {
           return items;
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('⚠️ [$name] Direct fetch failed (likely CORS or Bot block)');
+    }
     return [];
   }
 
@@ -282,6 +294,7 @@ class RssRemoteDataSource {
       if (response.statusCode == 200) {
         String body = _sanitizeBody(response);
 
+        // Handle JSON response from proxies like allorigins
         if (body.trim().startsWith('{')) {
           try {
             final data = jsonDecode(body);
@@ -297,7 +310,9 @@ class RssRemoteDataSource {
           return items;
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // Proxy failed, ignore as we are racing
+    }
     return [];
   }
 
