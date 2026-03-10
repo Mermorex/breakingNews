@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:news_app/core/utils/responsive.dart'; // Import Responsive Helper
+import 'package:news_app/core/constants/dashboard_constants.dart'; // Import Constants
+import 'package:news_app/core/utils/responsive.dart';
 import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
@@ -34,38 +35,9 @@ class InternationalNewsScreen extends StatefulWidget {
 class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  final List<NewsSource> _rssSources = [
-    NewsSource(
-        name: 'Al Jazeera Arabic',
-        url:
-            'https://www.aljazeera.net/aljazeerarss/a7c186be-1baa-4bd4-9d80-a84db769f779/73d0e1b4-532f-45ef-b135-bfdff8b8cab9'),
-    NewsSource(
-        name: 'Sky News Arabia', url: 'https://www.skynewsarabia.com/rss'),
-    NewsSource(name: 'BBC World', url: 'http://feeds.bbci.co.uk/news/rss.xml'),
-    NewsSource(
-        name: 'Reuters',
-        url:
-            'https://news.google.com/rss/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen'),
-    NewsSource(name: 'CNN', url: 'http://rss.cnn.com/rss/edition.rss'),
-    NewsSource(
-        name: 'NYT World',
-        url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml'),
-    NewsSource(
-        name: 'The Guardian', url: 'https://www.theguardian.com/world/rss'),
-    NewsSource(
-        name: 'The Hindu',
-        url: 'https://www.thehindu.com/news/international/?service=rss'),
-    NewsSource(
-        name: 'The Moscow Times',
-        url: 'https://www.themoscowtimes.com/rss/news'),
-    NewsSource(name: 'Neos Kosmos', url: 'https://neoskosmos.com/en/feed/'),
-    NewsSource(name: 'Euronews', url: 'https://www.euronews.com/rss'),
-    NewsSource(
-        name: 'AP News',
-        url:
-            'https://news.google.com/rss/search?q=site:apnews.com&hl=en-US&gl=US&ceid=US:en'),
-    NewsSource(name: '7News Australia', url: 'https://7news.com.au/rss'),
-  ];
+  // ✅ UPDATED: Get sources directly from Constants
+  List<NewsSource> get _rssSources =>
+      DashboardConstants.allInternationalSources;
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
   final Set<int> _loadingIndices = {};

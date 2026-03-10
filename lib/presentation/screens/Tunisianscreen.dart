@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:news_app/core/constants/dashboard_constants.dart'; // Import Constants
 import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
@@ -26,57 +27,13 @@ class TunisianNewsScreen extends StatefulWidget {
 class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  final List<NewsSource> _rssSources = [
-    NewsSource(name: 'Mosaïque FM', url: 'https://www.mosaiquefm.net/ar/rss'),
-    NewsSource(
-        name: 'Jawhara FM',
-        url: 'https://www.jawharafm.net/ar/rss/showRss/88/1/1'),
-    NewsSource(
-        name: 'Express FM', url: 'https://www.radioexpressfm.com/ar/rss'),
-    NewsSource(
-        name: 'Tunisie Focus',
-        url: 'https://www.tunisiefocus.com/category/politique/feed'),
-    NewsSource(
-        name: 'وزارة الداخلية',
-        url: 'https://www.interieur.gov.tn/ar/feed',
-        useWebFeed: false),
-    NewsSource(name: 'babnet', url: 'https://www.babnet.net/feed.php'),
-    NewsSource(
-      name: 'التلفزة التونسية',
-      url:
-          'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/%D8%A7%D8%AE%D8%A8%D8%A7%D8%B1%D9%86%D8%A7',
-      type: SourceType.scrapable,
-      selectors: {
-        'item': 'article, .article, .news-item, .item, .col-md-4, .col-lg-4',
-        'title': 'h3, .title, .article-title, h2, h4',
-        'link': 'a[href*="/articles/"], a[href*="/ar/"]',
-        'desc': '',
-        'date': '.date, time, .published-date',
-        'image': 'img, .article-image img',
-      },
-    ),
-    NewsSource(
-      name: 'rassdtunisia',
-      url: 'https://rassdtunisia.net/category/news',
-      type: SourceType.scrapable,
-      selectors: {
-        'item': 'article, .post, .entry',
-        'title': 'h2.entry-title a, h1.entry-title',
-        'link': 'h2.entry-title a[href], h1 a[href]',
-        'desc': '.entry-summary p, .post-excerpt',
-        'date':
-            '.entry-date, time.entry-date, .published, .posted-on, .byline, .entry-meta',
-        'image': 'img.wp-post-image, .post-thumbnail img',
-      },
-    ),
-  ];
+  // ✅ UPDATED: Get sources directly from Constants
+  // This prevents defining them twice and ensures consistency
+  List<NewsSource> get _rssSources => DashboardConstants.allTunisianSources;
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
-
-  // ✅ CHANGE 1: Track which sources are currently loading
   final Set<int> _loadingIndices = {};
-
-  bool _isGlobalLoading = true; // Only true for the very first load
+  bool _isGlobalLoading = true;
   String? _errorMessage;
   final Map<String, String> _sourceErrors = {};
 
@@ -87,25 +44,19 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   Future<void> _loadDashboardData() async {
-    // Don't clear data on refresh, just update it
+    // Don't clear data immediately! Keep showing old data while fetching.
     setState(() {
       _isGlobalLoading = true;
       _errorMessage = null;
       _sourceErrors.clear();
       _loadingIndices.clear();
-      _dashboardData.clear();
+      // REMOVED: _dashboardData.clear();
     });
 
-    // Create fetch tasks
     final fetchTasks = _rssSources.asMap().entries.map((entry) {
       return _fetchSource(entry.key, entry.value);
     }).toList();
 
-    // ✅ CHANGE 2: We don't await Future.wait to block the UI.
-    // We let the tasks run in background and update UI individually.
-    // We just wait a tiny bit to avoid UI jank, or use a Completer if you need "Refresh" to stop spinning.
-
-    // Start fetching
     Future.wait(fetchTasks).then((_) {
       if (mounted) {
         setState(() {
@@ -116,7 +67,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   Future<void> _fetchSource(int index, NewsSource source) async {
-    // 1. Mark as loading immediately
     if (mounted) {
       setState(() {
         _loadingIndices.add(index);
@@ -147,15 +97,11 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         );
       }
 
-      // 2. Update UI as soon as data arrives
       if (mounted) {
         setState(() {
           _loadingIndices.remove(index);
           if (items.isNotEmpty) {
             _dashboardData[index] = items;
-          } else {
-            // If empty, keep loading index removed but maybe set an error?
-            // For now, we just show empty state
           }
         });
       }
@@ -170,7 +116,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     }
   }
 
-  // ... (keep _openArticle, _showError, _copyLink methods as they were) ...
   Future<void> _openArticle(String url) async {
     if (url.isEmpty) return;
     String cleanUrl = url.trim();
@@ -245,7 +190,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded,
                 color: TunisianNewsTheme.cryptoOrange),
-            // Disable button while global loading is true if desired, or allow refresh anytime
             onPressed: _isGlobalLoading ? null : _loadDashboardData,
             tooltip: 'Refresh',
           ),
@@ -256,8 +200,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   Widget _buildContent() {
-    // ✅ CHANGE 3: Remove the blocking "Loading..." screen.
-    // We build the list immediately. The logic inside _buildSection handles the empty/loading state.
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _buildStatusHeader()),
@@ -265,14 +207,13 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
           final index = entry.key;
           final source = entry.value;
           final items = _dashboardData[index] ?? [];
-          // Check if this specific source is loading
           final isLoading = _loadingIndices.contains(index);
           final hasError = _sourceErrors.containsKey(source.name);
 
           return _buildSection(
             source: source,
             items: items,
-            isLoading: isLoading, // Pass loading state
+            isLoading: isLoading,
             hasError: hasError,
           );
         }),
@@ -281,7 +222,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     );
   }
 
-  // ... (keep _buildStatusHeader) ...
   Widget _buildStatusHeader() {
     return Container(
       margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
@@ -357,11 +297,10 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     );
   }
 
-  // ✅ UPDATED: Section Builder
   Widget _buildSection({
     required NewsSource source,
     required List<RssItemModel> items,
-    required bool isLoading, // New Param
+    required bool isLoading,
     required bool hasError,
   }) {
     final isArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(source.name);
@@ -372,7 +311,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Section Header (Same as before)
             Row(
               children: [
                 Container(
@@ -418,7 +356,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                     ],
                   ),
                 ),
-                // Show "View All" only if loaded and has items
                 if (items.isNotEmpty && !isLoading && !hasError)
                   InkWell(
                     onTap: () {
@@ -447,14 +384,11 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            'View All',
-                            style: GoogleFonts.montserrat(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: TunisianNewsTheme.cryptoOrange,
-                            ),
-                          ),
+                          Text('View All',
+                              style: GoogleFonts.montserrat(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: TunisianNewsTheme.cryptoOrange)),
                           const SizedBox(width: 6),
                           Icon(Icons.arrow_forward_rounded,
                               size: 14, color: TunisianNewsTheme.cryptoOrange),
@@ -465,19 +399,13 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
               ],
             ),
             const SizedBox(height: 20),
-
-            // ✅ Content Logic
             if (isLoading)
-              _buildLoadingPlaceholder() // Show skeleton while loading
+              _buildLoadingPlaceholder()
             else if (items.isNotEmpty)
               Row(
-                // Show Data
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    flex: 5,
-                    child: _buildMainArticleCard(items.first),
-                  ),
+                  Expanded(flex: 5, child: _buildMainArticleCard(items.first)),
                   const SizedBox(width: 20),
                   Expanded(
                     flex: 4,
@@ -492,14 +420,13 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                 ],
               )
             else
-              _buildEmptyErrorState(hasError), // Show Error/Empty
+              _buildEmptyErrorState(hasError),
           ],
         ),
       ),
     );
   }
 
-  // ✅ NEW: A nice loading skeleton
   Widget _buildLoadingPlaceholder() {
     return Container(
       height: 340,
@@ -512,49 +439,17 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Simple pulsing animation simulation using opacity
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.3, end: 1.0),
-              duration: const Duration(milliseconds: 800),
-              builder: (context, value, child) {
-                return Opacity(
-                  opacity: value,
-                  child: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: TunisianNewsTheme.cryptoOrange.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-              onEnd:
-                  () {}, // Can loop if needed, but simple static is fine for now
-            ),
+            const CircularProgressIndicator(
+                color: TunisianNewsTheme.cryptoOrange),
             const SizedBox(height: 16),
-            Text(
-              'Fetching Feed...',
-              style:
-                  GoogleFonts.montserrat(color: Colors.white54, fontSize: 12),
-            ),
+            Text('Fetching Feed...',
+                style: GoogleFonts.montserrat(
+                    color: Colors.white54, fontSize: 12)),
           ],
         ),
       ),
     );
   }
-
-  // ... (Keep _buildMainArticleCard, _buildSideArticleCard, _buildEmptyErrorState, _buildLoadingView, etc. as before) ...
 
   Widget _buildMainArticleCard(RssItemModel article) {
     final sourceName = article.source ?? 'News';
@@ -768,7 +663,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     );
   }
 
-  // --- HELPERS ---
   Widget _buildEmptyErrorState(bool hasError) {
     return Container(
       height: 200,
@@ -785,6 +679,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     );
   }
 
+  // --- HELPERS ---
   TextStyle _getTextStyle(bool isArabic, TextStyle style) {
     if (isArabic) {
       return GoogleFonts.notoKufiArabic(textStyle: style);

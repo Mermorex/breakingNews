@@ -8,124 +8,148 @@ import '../models/rss_item_model.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
 class RssRemoteDataSource {
-  // Reduced timeouts for "Speed Perception"
-  static const Duration _connectTimeout = Duration(seconds: 3);
+  static const Duration _connectTimeout = Duration(seconds: 5);
+  static const Duration _globalTimeout = Duration(seconds: 6);
 
-  static const Map<String, String> _headers = {
-    'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-    'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-  };
+  // CACHE: Prevents 429 Rate Limit errors on refresh
+  static const Duration _cacheDuration = Duration(minutes: 5);
+  final Map<String, _CacheEntry> _cache = {};
 
-  /// Main method to fetch RSS feeds using parallel requests (Race Condition)
-  /// Falls back to RSS2JSON API if proxies fail (Fixes AlJazeera, etc.)
+  Map<String, String> _getHeaders() {
+    if (kIsWeb) {
+      return {'Accept': 'application/rss+xml, application/xml, text/xml, */*'};
+    } else {
+      return {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+      };
+    }
+  }
+
+  /// Main RSS Fetcher with Caching and Race Condition
   Future<List<RssItemModel>> fetchRssFeed(
     String url, {
     String? sourceName,
     int limit = 10,
+    bool forceRefresh = false,
   }) async {
     final name = sourceName ?? 'Unknown';
     final cleanUrl = url.trim();
     if (cleanUrl.isEmpty) return [];
 
+    // 1. CHECK CACHE
+    if (!forceRefresh && _cache.containsKey(cleanUrl)) {
+      final entry = _cache[cleanUrl]!;
+      if (DateTime.now().difference(entry.timestamp) < _cacheDuration) {
+        debugPrint('💾 [$name] Loaded from Cache');
+        return entry.items;
+      }
+    }
+
     try {
-      final completer = Completer<List<RssItemModel>>();
-      int activeRequests = 0;
-      bool hasCompleted = false;
+      final List<Future<List<RssItemModel>>> futures = [];
 
-      void handleResult(List<RssItemModel>? items) {
-        if (hasCompleted) return;
-        if (items != null && items.isNotEmpty) {
-          hasCompleted = true;
-          completer.complete(items);
-        } else {
-          activeRequests--;
-          if (activeRequests == 0 && !completer.isCompleted) {
-            completer.complete([]);
-          }
-        }
-      }
-
-      // 1. Direct Fetch (Mobile/Desktop)
+      // 2. Direct Fetch (Mobile/Desktop only)
       if (!kIsWeb) {
-        activeRequests++;
-        _tryDirectFetch(cleanUrl, name, limit).then(handleResult);
+        futures.add(_tryDirectFetch(cleanUrl, name, limit));
       }
 
-      // 2. Proxy Fetches (Web & Mobile Fallback)
+      // 3. Proxy Fetches
       final proxies = [
         'https://api.allorigins.win/raw?url=',
+        'https://api.codetabs.com/v1/proxy?quest=', // Reliable backup
         'https://corsproxy.io/?',
       ];
 
       for (final proxy in proxies) {
-        activeRequests++;
-        final proxyUrl = proxy.contains('corsproxy.io')
-            ? '$proxy${Uri.encodeComponent(cleanUrl)}'
-            : '$proxy${Uri.encodeComponent(cleanUrl)}';
-
-        _tryProxyFetch(proxyUrl, name, limit).then(handleResult);
+        final proxyUrl =
+            proxy.contains('corsproxy.io') || proxy.contains('codetabs')
+                ? '$proxy${Uri.encodeComponent(cleanUrl)}'
+                : '$proxy${Uri.encodeComponent(cleanUrl)}';
+        futures.add(_tryProxyFetch(proxyUrl, name, limit));
       }
 
-      // Wait for the race results
-      List<RssItemModel> results = await completer.future.timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => [],
-      );
+      // Race the proxies
+      final results = await _raceSuccess(futures)
+          .timeout(_globalTimeout, onTimeout: () => []);
 
-      // STRATEGY 2: Fallback
-      // If parallel fetch failed (returns empty), try RSS2JSON API.
-      // This handles strict sites like AlJazeera that block standard proxies.
-      if (results.isEmpty) {
-        debugPrint(
-            '⚠️ $name: Parallel fetch failed, trying RSS2JSON fallback...');
-        return await _fetchViaRss2Json(cleanUrl, name, limit);
+      // 4. FALLBACK
+      List<RssItemModel> finalItems = results;
+      if (finalItems.isEmpty) {
+        finalItems = await _fetchViaRss2Json(cleanUrl, name, limit);
       }
 
-      return results;
+      // 5. SAVE TO CACHE
+      if (finalItems.isNotEmpty) {
+        _cache[cleanUrl] =
+            _CacheEntry(items: finalItems, timestamp: DateTime.now());
+      } else {
+        // If failed, keep old cache to avoid UI flashing empty
+        if (_cache.containsKey(cleanUrl)) {
+          return _cache[cleanUrl]!.items;
+        }
+      }
+
+      return finalItems;
     } catch (e) {
-      debugPrint('❌ $name: Error -> $e');
+      debugPrint('❌ [$name] Critical Error -> $e');
+      if (_cache.containsKey(cleanUrl)) return _cache[cleanUrl]!.items;
       return [];
     }
   }
 
-  /// Method to scrape websites that don't have RSS
+  /// Website Scraper with Caching
   Future<List<RssItemModel>> scrapeWebsite(
-      String url, Map<String, String> selectors,
-      {String? sourceName, int limit = 10}) async {
+    String url,
+    Map<String, String> selectors, {
+    String? sourceName,
+    int limit = 10,
+  }) async {
     final name = sourceName ?? 'Unknown';
-    try {
-      final cleanUrl = url.trim();
-      String? htmlContent;
+    final cleanUrl = url.trim();
 
-      // Try fetching via proxies for scraping
+    // 1. Check Cache
+    if (_cache.containsKey(cleanUrl)) {
+      final entry = _cache[cleanUrl]!;
+      if (DateTime.now().difference(entry.timestamp) < _cacheDuration) {
+        debugPrint('💾 [$name] Scraper loaded from Cache');
+        return entry.items;
+      }
+    }
+
+    try {
+      String? htmlContent;
       final proxies = [
         'https://api.allorigins.win/raw?url=',
-        'https://corsproxy.io/?',
+        'https://api.codetabs.com/v1/proxy?quest=',
       ];
 
+      // Try proxies sequentially
       for (final proxy in proxies) {
         try {
-          String proxyUrl = proxy.contains('corsproxy.io')
-              ? '$proxy$cleanUrl'
+          final proxyUrl = proxy.contains('codetabs')
+              ? '$proxy${Uri.encodeComponent(cleanUrl)}'
               : '$proxy${Uri.encodeComponent(cleanUrl)}';
 
           final response = await http
-              .get(Uri.parse(proxyUrl))
-              .timeout(const Duration(seconds: 5));
+              .get(Uri.parse(proxyUrl), headers: _getHeaders())
+              .timeout(_connectTimeout);
 
           if (response.statusCode == 200) {
             htmlContent = _sanitizeBody(response);
-            // Check if we actually got HTML content
             if (htmlContent.contains('</html>') ||
-                htmlContent.contains('<body')) break;
+                htmlContent.contains('<body')) {
+              break;
+            }
           }
-        } catch (_) {
+        } catch (e) {
+          debugPrint('🔄 [$name] Scraping proxy failed, trying next...');
           continue;
         }
       }
 
-      if (htmlContent == null) return [];
+      if (htmlContent == null || htmlContent.isEmpty) return [];
 
       final document = parse(htmlContent);
       final elements =
@@ -144,8 +168,9 @@ class RssRemoteDataSource {
             .trim();
 
         if (title != null && link != null) {
-          if (!link.startsWith('http'))
+          if (!link.startsWith('http')) {
             link = Uri.parse(cleanUrl).resolve(link).toString();
+          }
 
           items.add(RssItemModel(
             title: title,
@@ -157,46 +182,106 @@ class RssRemoteDataSource {
           ));
         }
       }
+
+      // Save to cache
+      if (items.isNotEmpty) {
+        _cache[cleanUrl] = _CacheEntry(items: items, timestamp: DateTime.now());
+      }
+
       return items;
     } catch (e) {
-      debugPrint('❌ $name: Scraping error: $e');
+      debugPrint('❌ [$name] Scraping error: $e');
       return [];
     }
   }
 
+  /// Article Content Fetcher
+  Future<String> fetchArticleContent(String url) async {
+    try {
+      String fetchUrl = url;
+      if (kIsWeb) {
+        fetchUrl =
+            'https://api.allorigins.win/raw?url=${Uri.encodeComponent(url)}';
+      }
+
+      final response = await http
+          .get(Uri.parse(fetchUrl), headers: _getHeaders())
+          .timeout(_connectTimeout);
+
+      if (response.statusCode == 200) {
+        final document = parse(response.body);
+        document
+            .querySelectorAll('script, style, nav, footer, header, aside')
+            .forEach((e) => e.remove());
+
+        final articleBody = document.querySelector('article') ?? document.body;
+        String text = articleBody?.text ?? '';
+        text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+        return text.length > 3000 ? text.substring(0, 3000) : text;
+      }
+    } catch (e) {
+      debugPrint('Error fetching content: $e');
+    }
+    return '';
+  }
+
   // --- Private Helpers ---
 
-  Future<List<RssItemModel>?> _tryDirectFetch(
+  Future<List<RssItemModel>> _raceSuccess(
+      List<Future<List<RssItemModel>>> futures) async {
+    if (futures.isEmpty) return [];
+    final completer = Completer<List<RssItemModel>>();
+    int remaining = futures.length;
+
+    for (final future in futures) {
+      future.then((value) {
+        if (!completer.isCompleted) {
+          if (value.isNotEmpty) {
+            completer.complete(value);
+          } else {
+            remaining--;
+            if (remaining == 0) completer.complete([]);
+          }
+        }
+      }).catchError((error) {
+        remaining--;
+        if (remaining == 0 && !completer.isCompleted) {
+          completer.complete([]);
+        }
+      });
+    }
+    return completer.future;
+  }
+
+  Future<List<RssItemModel>> _tryDirectFetch(
       String url, String name, int limit) async {
     try {
       final response = await http
-          .get(Uri.parse(url), headers: _headers)
+          .get(Uri.parse(url), headers: _getHeaders())
           .timeout(_connectTimeout);
 
       if (response.statusCode == 200) {
         final body = _sanitizeBody(response);
         if (!_isHtmlResponse(body)) {
           final items = _parseRssString(body, name, limit);
-          if (items.isNotEmpty) {
-            debugPrint('⚡ $name: Direct Fetch Success');
-            return items;
-          }
+          if (items.isNotEmpty) debugPrint('⚡ [$name] Direct Fetch Success');
+          return items;
         }
       }
-    } catch (_) {}
-    return null;
+    } catch (e) {}
+    return [];
   }
 
-  Future<List<RssItemModel>?> _tryProxyFetch(
+  Future<List<RssItemModel>> _tryProxyFetch(
       String proxyUrl, String name, int limit) async {
     try {
-      final response =
-          await http.get(Uri.parse(proxyUrl)).timeout(_connectTimeout);
+      final response = await http
+          .get(Uri.parse(proxyUrl), headers: _getHeaders())
+          .timeout(_connectTimeout);
 
       if (response.statusCode == 200) {
         String body = _sanitizeBody(response);
 
-        // Handle JSON wrapped responses
         if (body.trim().startsWith('{')) {
           try {
             final data = jsonDecode(body);
@@ -207,50 +292,45 @@ class RssRemoteDataSource {
         if (!_isHtmlResponse(body)) {
           final items = _parseRssString(body, name, limit);
           if (items.isNotEmpty) {
-            debugPrint('⚡ $name: Proxy Fetch Success');
-            return items;
+            debugPrint('⚡ [$name] Proxy Success');
           }
+          return items;
         }
       }
-    } catch (_) {}
-    return null;
+    } catch (e) {}
+    return [];
   }
 
-  // NEW: Fallback API method for strict sources
   Future<List<RssItemModel>> _fetchViaRss2Json(
       String url, String name, int limit) async {
     try {
       final apiUrl =
           'https://api.rss2json.com/v1/api.json?rss_url=${Uri.encodeComponent(url)}';
       final response =
-          await http.get(Uri.parse(apiUrl)).timeout(const Duration(seconds: 5));
+          await http.get(Uri.parse(apiUrl)).timeout(_connectTimeout);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'ok' && data['items'] != null) {
           final items = (data['items'] as List).map((item) {
-            DateTime? pubDate;
-            try {
-              pubDate = DateTime.parse(item['pubDate']);
-            } catch (_) {}
-
             return RssItemModel(
               title: item['title'] ?? 'No Title',
               link: item['link'] ?? '',
               pubDate: item['pubDate'] ?? '',
               description: item['description'] ?? '',
               imageUrl: item['enclosure']?['link'] ?? item['thumbnail'],
-              publishedAt: pubDate,
+              publishedAt: DateTime.tryParse(item['pubDate'] ?? ''),
               source: name,
             );
           }).toList();
-
-          debugPrint('✅ $name: RSS2JSON Fallback Success');
+          debugPrint('✅ [$name] RSS2JSON Fallback Success');
           return items.take(limit).toList();
+        } else {
+          debugPrint('⚠️ [$name] RSS2JSON Error: ${data['message']}');
         }
       }
     } catch (e) {
-      debugPrint('❌ $name: RSS2JSON Fallback Failed');
+      debugPrint('❌ [$name] RSS2JSON Failed: $e');
     }
     return [];
   }
@@ -258,21 +338,19 @@ class RssRemoteDataSource {
   List<RssItemModel> _parseRssString(String rssString, String name, int limit) {
     try {
       final feed = RssFeed.parse(rssString);
-      return feed.items
-          .take(limit)
-          .map((item) => RssItemModel(
-                title: item.title ?? 'No Title',
-                link: item.link ?? '',
-                pubDate: item.pubDate ?? DateTime.now().toString(),
-                description: item.description ?? '',
-                publishedAt: item.pubDate != null
-                    ? RssItemModel.parseDate(item.pubDate!)
-                    : null,
-                source: name,
-              ))
-          .toList();
+      return feed.items.take(limit).map((item) {
+        return RssItemModel(
+          title: item.title ?? 'No Title',
+          link: item.link ?? '',
+          pubDate: item.pubDate ?? DateTime.now().toString(),
+          description: item.description ?? '',
+          publishedAt: item.pubDate != null
+              ? RssItemModel.parseDate(item.pubDate!)
+              : null,
+          source: name,
+        );
+      }).toList();
     } catch (e) {
-      // Fallback manual XML parsing if library fails
       try {
         final document = XmlDocument.parse(rssString);
         return document
@@ -286,40 +364,22 @@ class RssRemoteDataSource {
     }
   }
 
-  Future<String> fetchArticleContent(String url) async {
+  String _sanitizeBody(http.Response response) {
+    String body;
     try {
-      // Use a proxy if on web, or direct if mobile
-      String fetchUrl = url;
-      if (kIsWeb) {
-        fetchUrl =
-            'https://api.allorigins.win/raw?url=${Uri.encodeComponent(url)}';
-      }
-
-      final response = await http
-          .get(Uri.parse(fetchUrl))
-          .timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final document = parse(response.body);
-
-        // Remove scripts and styles to get clean text
-        document
-            .querySelectorAll('script, style, nav, footer, header, aside')
-            .forEach((e) => e.remove());
-
-        // Try to find the main article body, fallback to body
-        final articleBody = document.querySelector('article') ?? document.body;
-
-        // Extract text and clean whitespace
-        String text = articleBody?.text ?? '';
-        text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-
-        // Return first 3000 chars to avoid huge API costs/limits
-        return text.length > 3000 ? text.substring(0, 3000) : text;
-      }
+      body = utf8.decode(response.bodyBytes, allowMalformed: true);
     } catch (e) {
-      debugPrint('Error fetching content: $e');
+      body = latin1.decode(response.bodyBytes, allowInvalid: true);
     }
-    return '';
+    if (body.isNotEmpty && body.codeUnitAt(0) == 0xFEFF) {
+      body = body.substring(1);
+    }
+    return body.trim();
+  }
+
+  bool _isHtmlResponse(String body) {
+    final trimmed = body.trim().toLowerCase();
+    return trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html');
   }
 
   DateTime? _parseArabicDate(String? dateText) {
@@ -362,21 +422,11 @@ class RssRemoteDataSource {
       return null;
     }
   }
+}
 
-  String _sanitizeBody(http.Response response) {
-    String body;
-    try {
-      body = utf8.decode(response.bodyBytes, allowMalformed: true);
-    } catch (e) {
-      body = latin1.decode(response.bodyBytes, allowInvalid: true);
-    }
-    if (body.isNotEmpty && body.codeUnitAt(0) == 0xFEFF)
-      body = body.substring(1);
-    return body.trim();
-  }
+class _CacheEntry {
+  final List<RssItemModel> items;
+  final DateTime timestamp;
 
-  bool _isHtmlResponse(String body) {
-    final trimmed = body.trim().toLowerCase();
-    return trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html');
-  }
+  _CacheEntry({required this.items, required this.timestamp});
 }
