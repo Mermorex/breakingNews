@@ -8,9 +8,14 @@ class HomeController extends ChangeNotifier {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
   Map<String, List<RssItemModel>> _dashboardData = {};
-  bool _isLoading = true;
+  bool _isLoading = true; // Default to true
   String? _error;
   int _selectedIndex = 0;
+
+  // ✅ FIX: Constructor calls load immediately
+  HomeController() {
+    loadDashboardData();
+  }
 
   // Getters
   Map<String, List<RssItemModel>> get dashboardData => _dashboardData;
@@ -33,21 +38,18 @@ class HomeController extends ChangeNotifier {
       DashboardConstants.internationalFeatured;
   List<Map<String, String>> get algerianFeatured =>
       DashboardConstants.algerianFeatured;
-
-  // ✅ NEW: Iranian Featured Sources
   List<Map<String, String>> get iranianFeatured =>
       DashboardConstants.iranianFeatured;
 
-  // Get articles by region prefix - SORTED BY DATE (newest first)
+  // Get articles by region prefix
   List<RssItemModel> getTunisianArticles() => _getArticlesByRegion('TN');
   List<RssItemModel> getFrenchArticles() => _getArticlesByRegion('FR');
   List<RssItemModel> getMoroccanArticles() => _getArticlesByRegion('MA');
   List<RssItemModel> getInternationalArticles() => _getArticlesByRegion('INT');
   List<RssItemModel> getAlgerianArticles() => _getArticlesByRegion('DZ');
-  // ✅ NEW: Iranian Articles
   List<RssItemModel> getIranianArticles() => _getArticlesByRegion('IR');
 
-  // Featured articles for dashboard (limited to 3, sorted by date)
+  // Featured articles for dashboard
   List<RssItemModel> get tunisianFeaturedArticles =>
       getTunisianArticles().take(3).toList();
   List<RssItemModel> get frenchFeaturedArticles =>
@@ -58,17 +60,15 @@ class HomeController extends ChangeNotifier {
       getInternationalArticles().take(3).toList();
   List<RssItemModel> get algerianFeaturedArticles =>
       getAlgerianArticles().take(3).toList();
-  // ✅ NEW: Iranian Featured List
   List<RssItemModel> get iranianFeaturedArticles =>
       getIranianArticles().take(3).toList();
 
-  // Count getters for StatsRow
+  // Count getters
   int get tunisianCount => getTunisianArticles().length;
   int get frenchCount => getFrenchArticles().length;
   int get moroccanCount => getMoroccanArticles().length;
   int get internationalCount => getInternationalArticles().length;
   int get algerianCount => getAlgerianArticles().length;
-  // ✅ NEW: Iranian Count
   int get iranianCount => getIranianArticles().length;
 
   void setSelectedIndex(int index) {
@@ -77,31 +77,34 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadDashboardData() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+    // Don't set isLoading to true if we want progressive UI,
+    // or handle it specifically for the "First Launch" scenario.
+    // Here, we keep isLoading true only if we have ZERO data initially.
+    if (_dashboardData.isEmpty) {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+    }
 
-    _dashboardData.clear();
+    _dashboardData.clear(); // Clear old data to ensure freshness
 
     final allSources = [
       ...tunisianFeatured.map((s) => {...s, 'region': 'TN'}),
-
       ...moroccanFeatured.map((s) => {...s, 'region': 'MA'}),
       ...algerianFeatured.map((s) => {...s, 'region': 'DZ'}),
-      ...iranianFeatured.map((s) => {...s, 'region': 'IR'}), // ✅ ADDED IRAN
+      ...iranianFeatured.map((s) => {...s, 'region': 'IR'}),
       ...internationalFeatured.map((s) => {...s, 'region': 'INT'}),
     ];
 
-    try {
-      await Future.wait(
-        allSources.map((source) => _fetchSourceData(source)),
-        eagerError: false,
-      );
-    } catch (e) {
-      _error = e.toString();
-      debugPrint('Error in batch fetch: $e');
-    }
+    // We create a list of futures but we DON'T wait for all of them to finish
+    // before updating the UI.
+    final futures =
+        allSources.map((source) => _fetchSourceData(source)).toList();
 
+    // We run them all at once
+    await Future.wait(futures);
+
+    // Once everything is done, we turn off the main loading flag
     _isLoading = false;
     notifyListeners();
   }
@@ -122,6 +125,11 @@ class HomeController extends ChangeNotifier {
       _dashboardData[key] = items;
 
       debugPrint('✅ Loaded ${items.length} articles from ${source['name']}');
+
+      // ✅ CRITICAL FIX: Notify listeners HERE
+      // This tells the UI to rebuild immediately after THIS specific source loads.
+      // This creates the "One by One" loading effect.
+      notifyListeners();
     } catch (e) {
       debugPrint('❌ Error loading ${source['name']}: $e');
       final key = '${source['region']}_${source['name']}';

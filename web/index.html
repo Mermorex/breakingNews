@@ -1,19 +1,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
@@ -31,8 +18,94 @@
 
   <title>Breaking News</title>
   <link rel="manifest" href="manifest.json">
+  
+  <!-- STYLES FOR THE LOADING SCREEN -->
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0B0E14; /* Match your Dart theme cryptoDarkBg */
+    }
+
+    /* The Loading Container */
+    #loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 9999;
+      background-color: #0B0E14;
+      transition: opacity 0.5s ease-out; /* Smooth fade out */
+    }
+
+    /* The Spinner Animation */
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 140, 0, 0.2); /* Light orange ring */
+      border-top: 4px solid #FF8C00; /* cryptoOrange solid */
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    /* Loading Text */
+    .loading-text {
+      margin-top: 20px;
+      color: #FF8C00;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      letter-spacing: 2px;
+      font-weight: 600;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
+  
+  <!-- HTML LOADING SCREEN ELEMENTS -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <div class="loading-text">LOADING FEED...</div>
+  </div>
+
+  <!-- Standard Flutter Bootstrap -->
   <script src="flutter_bootstrap.js" async></script>
+  
+  <!-- SMART SCRIPT TO HIDE LOADER WHEN FLUTTER IS READY -->
+  <script>
+    // Uses a MutationObserver to detect when Flutter adds its view to the page
+    // This is compatible with flutter_bootstrap.js and all Flutter versions
+    const observer = new MutationObserver((mutations, obs) => {
+      // Check if the Flutter view (flt-glass-pane or flutter-view) is in the DOM
+      const flutterView = document.querySelector('flt-glass-pane') || document.querySelector('flutter-view');
+      
+      if (flutterView) {
+        // Flutter engine is ready
+        const loader = document.getElementById('loading');
+        if (loader) {
+          // Fade out
+          loader.style.opacity = '0';
+          // Remove from DOM after fade
+          setTimeout(() => {
+            loader.remove();
+          }, 500);
+        }
+        // Stop observing
+        obs.disconnect();
+      }
+    });
+
+    // Start observing the body for added children
+    observer.observe(document.body, { childList: true, subtree: true });
+  </script>
 </body>
 </html>

@@ -204,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       onViewMorocco: () => _handleNavigation(2),
       onViewAlgeria: () => _handleNavigation(3),
       onViewIran: () => _handleNavigation(4),
+      isLoading: _controller.isLoading,
     );
   }
 }

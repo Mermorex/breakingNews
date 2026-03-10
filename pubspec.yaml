@@ -20,6 +20,7 @@ dependencies:
   rss_dart: ^1.0.14
   charset: ^2.0.0
   provider: ^6.0.0
+  flutter_dotenv: ^5.1.0
 
 dev_dependencies:
   flutter_test:

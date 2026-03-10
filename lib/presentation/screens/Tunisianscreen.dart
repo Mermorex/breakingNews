@@ -144,7 +144,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
           cleanUrl,
           sourceName: source.name,
           limit: 3,
-          useWebFeed: source.useWebFeed,
         );
       }
 
