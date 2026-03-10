@@ -9,6 +9,10 @@ class DashboardConstants {
   static const List<Map<String, String>> tunisianFeatured = [
     {'name': 'Mosaïque FM', 'url': 'https://www.mosaiquefm.net/ar/rss'},
     {'name': 'وزارة الداخلية', 'url': 'https://www.interieur.gov.tn/ar/feed'},
+    {
+      'name': 'La Presse',
+      'url': 'https://www.lapresse.tn/category/actualites/feed'
+    },
   ];
 
   static const List<Map<String, String>> moroccanFeatured = [
@@ -100,6 +104,7 @@ class DashboardConstants {
           )),
 
       // 2. Additional RSS Feeds specific to the screen
+
       NewsSource(
           name: 'Jawhara FM',
           url: 'https://www.jawharafm.net/ar/rss/showRss/88/1/1'),
@@ -109,6 +114,8 @@ class DashboardConstants {
           name: 'Tunisie Focus',
           url: 'https://www.tunisiefocus.com/category/politique/feed'),
       NewsSource(name: 'babnet', url: 'https://www.babnet.net/feed.php'),
+      NewsSource(
+          name: 'jeuneafrique', url: 'https://www.jeuneafrique.com/feed/'),
 
       // 3. Scrapable Sources
       NewsSource(

@@ -61,13 +61,12 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   void _initializeSourceMap() {
     _urlSourceMap = {};
 
-    // Only need to map Tunisian sources for this screen
-    for (final item in DashboardConstants.tunisianFeatured) {
-      final name = item['name'];
-      final url = item['url'];
-      if (name == null || url == null) continue;
+    // Use allTunisianSources so scrapers like NewsNow are included in the map
+    for (final source in DashboardConstants.allTunisianSources) {
+      final name = source.name;
+      final url = source.url;
 
-      // Key from Name
+      // Key from Name (normalized)
       _urlSourceMap[name.toLowerCase().replaceAll(' ', '')] = name;
 
       // Key from URL
@@ -75,12 +74,14 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         final uri = Uri.parse(url);
         String host = uri.host.replaceFirst('www.', '');
         _urlSourceMap[host] = name;
+
+        // Add domain parts (e.g., 'newsnow' from 'www.newsnow.co.uk')
         final domainPart = host.split('.').first;
         if (domainPart.length > 2) {
           _urlSourceMap[domainPart] = name;
         }
       } catch (e) {
-        // Ignore
+        // Ignore invalid URLs
       }
     }
   }
@@ -247,7 +248,18 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       'articles',
       'unknown'
     ];
-    return genericNames.any((generic) => name.toLowerCase().contains(generic));
+
+    final lowerName = name.toLowerCase();
+
+    // Use word boundaries (\b) to ensure we match whole words only.
+    // This prevents "NewsNow" from matching "news".
+    for (final generic in genericNames) {
+      final regex = RegExp('\\b${RegExp.escape(generic)}\\b');
+      if (regex.hasMatch(lowerName)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   String _cleanSourceName(String name) {
