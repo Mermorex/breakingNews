@@ -26,10 +26,7 @@ class NewsSources {
   // ==========================================
   static final List<NewsSource> tunisian = [
     NewsSource(name: 'Mosaïque FM', url: 'https://www.mosaiquefm.net/ar/rss'),
-    NewsSource(
-      name: 'وزارة الداخلية',
-      url: 'https://www.interieur.gov.tn/ar/feed/',
-    ),
+
     NewsSource(
         name: 'La Presse',
         url: 'https://www.lapresse.tn/category/actualites/feed'),
