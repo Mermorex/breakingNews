@@ -19,38 +19,84 @@
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
 
-    gtag('config', 'G-HKMWZ1SDTE'); // <--- Your ID here
+    gtag('config', 'G-HKMWZ1SDTE');
   </script>
 
-  <script>
-    // 1. Define the critical URLs to preload (Main Dashboard Feeds)
+    <script>
+    // 1. Define the critical URLs to preload (Start with key regions for faster initial load)
     const PRELOAD_URLS = [
-   
+      // --- TUNISIAN (Priority) ---
+      'https://www.mosaiquefm.net/ar/rss',
+      'https://www.lapresse.tn/category/actualites/feed',
+      'https://www.jawharafm.net/ar/rss/showRss/88/1/17',
+      'https://radioexpressfm.com/ar/feed/',
+      'https://www.tunisiefocus.com/category/politique/feed',
+      'https://www.babnet.net/feed.php',
+      'https://www.jeuneafrique.com/feed/',
+      'https://www.alchourouk.com/rss',
+      'https://www.tunisie.gov.tn/uploads/Document/fluxRssActualite.xml',
+      'https://www.businessnews.com.tn/feed',
+      'https://nawaat.org/feed/',
+      // --- MOROCCAN ---
+      'https://fr.le360.ma/rss',
+      'https://www.hespress.com/feed',
+      'https://aujourdhui.ma/feed',
+      'https://www.moroccoworldnews.com/feed/',
+      // --- ALGERIAN ---
+      'https://www.tsa-algerie.com/feed/',
+      'https://elwatan.dz/feed/',
+      'https://www.liberte-algerie.com/feed/',
+      'https://www.algerie360.com/feed/',
+      'https://elkhabar.com/feed/',
+      // --- INTERNATIONAL (Top Picks) ---
+      'https://www.aljazeera.com/xml/rss/all.xml',
+      'http://feeds.bbci.co.uk/news/rss.xml',
+      'http://rss.cnn.com/rss/edition.rss',
+      'https://news.google.com/rss/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen',
+      'https://www.theguardian.com/world/rss',
+      'https://www.euronews.com/rss',
+      'https://techcrunch.com/feed/',
     ];
 
-    // 2. Use a reliable proxy to bypass CORS in the browser
-    const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+    // 2. Define Fallback Proxies
+    const PROXIES = [
+      'https://api.allorigins.win/raw?url=',
+      'https://corsproxy.io/?'
+    ];
 
-    // 3. Global storage for the preloaded data
+    // 3. Global storage
     window.preloadedRssData = {};
 
-    console.log('🚀 [Preload] Starting data fetch in background...');
+    console.log('🚀 [Preload] Starting background fetch for ' + PRELOAD_URLS.length + ' sources...');
 
-    PRELOAD_URLS.forEach(url => {
-      fetch(PROXY_URL + encodeURIComponent(url))
+    // 4. Smart Fetch Function with Fallback
+    function fetchWithProxy(url, proxyIndex) {
+      if (proxyIndex >= PROXIES.length) return; // All proxies failed, give up silently
+
+      const proxy = PROXIES[proxyIndex];
+      const fetchUrl = proxy + encodeURIComponent(url);
+
+      fetch(fetchUrl)
         .then(response => {
-          if (response.ok) return response.text();
-          throw new Error('Network error');
+          if (!response.ok) throw new Error('Proxy error');
+          return response.text();
         })
         .then(text => {
-          // Store the raw RSS XML string
-          window.preloadedRssData[url] = text;
-          console.log('✅ [Preload] Fetched: ' + url);
+          if (text && text.length > 100) { // Basic validation
+            window.preloadedRssData[url] = text;
+             // console.log('✅ [Preload] Success: ' + url); 
+          } else {
+            throw new Error('Empty response');
+          }
         })
         .catch(err => {
-          console.error('❌ [Preload] Failed: ' + url, err);
+          // Try the next proxy in the list
+          fetchWithProxy(url, proxyIndex + 1);
         });
-    });
+    }
+
+    // Start fetching
+    PRELOAD_URLS.forEach(url => fetchWithProxy(url, 0));
   </script>
   
   <style>

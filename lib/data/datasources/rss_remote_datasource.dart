@@ -10,8 +10,8 @@ import 'package:news_app/core/services/preload_service.dart';
 import 'package:news_app/data/models/news_source.dart';
 
 class RssRemoteDataSource {
-  static const Duration _connectTimeout = Duration(seconds: 8);
-  static const Duration _globalTimeout = Duration(seconds: 10);
+  static const Duration _connectTimeout = Duration(seconds: 10);
+  static const Duration _globalTimeout = Duration(seconds: 15);
   static const Duration _cacheDuration = Duration(minutes: 5);
 
   final Map<String, _CacheEntry> _cache = {};
@@ -31,10 +31,6 @@ class RssRemoteDataSource {
       };
     }
   }
-
-  // ==========================================
-  // MAIN ENTRY POINT
-  // ==========================================
 
   Future<List<RssItemModel>> getFeed(NewsSource source,
       {int limit = 10, bool forceRefresh = false}) async {
@@ -68,7 +64,6 @@ class RssRemoteDataSource {
     if (!forceRefresh && _cache.containsKey(cleanUrl)) {
       final entry = _cache[cleanUrl]!;
       if (DateTime.now().difference(entry.timestamp) < _cacheDuration) {
-        debugPrint('💾 [$name] Loaded from Cache');
         return entry.items;
       }
     }
@@ -93,23 +88,60 @@ class RssRemoteDataSource {
     try {
       final List<Future<List<RssItemModel>>> futures = [];
 
+      final proxies = [
+        'https://corsproxy.io/?',
+        'https://api.allorigins.win/raw?url=',
+        'https://api.codetabs.com/v1/proxy?quest=',
+      ];
+
+      // Strategy A: Try Original URL
       if (!kIsWeb) {
         futures.add(_tryDirectFetch(cleanUrl, name, limit));
       }
+      // Try original via proxies
+      for (final proxy in proxies) {
+        futures.add(_tryProxyFetch(
+            '$proxy${Uri.encodeComponent(cleanUrl)}', name, limit));
+      }
 
-      // Proxies for CORS bypass
-      final proxies = [
-        'https://api.allorigins.win/raw?url=',
-        'https://api.codetabs.com/v1/proxy?quest=',
-        'https://corsproxy.io/?',
+      // Strategy B: Smart Fallback (Google News Mirror)
+      // We identify domains that are consistently problematic (Iranian gov, some Arabic sites)
+      final problematicDomains = [
+        'mehrnews',
+        'tasnim',
+        'tehrantimes',
+        'farsnews',
+        'aljazeera.net',
+        'presstv',
+        'presstv.ir',
+        'tunisie.gov.tn',
+        'babnet'
       ];
 
-      for (final proxy in proxies) {
-        final proxyUrl =
-            proxy.contains('corsproxy.io') || proxy.contains('codetabs')
-                ? '$proxy${Uri.encodeComponent(cleanUrl)}'
-                : '$proxy${Uri.encodeComponent(cleanUrl)}';
-        futures.add(_tryProxyFetch(proxyUrl, name, limit));
+      bool isProblematic = problematicDomains.any((d) => cleanUrl.contains(d));
+
+      if (isProblematic) {
+        final uri = Uri.tryParse(cleanUrl);
+        if (uri != null && uri.host.isNotEmpty) {
+          final domain = uri.host.replaceFirst('www.', '');
+          // Create Google News RSS URL for this specific domain
+          final googleUrl =
+              'https://news.google.com/rss/search?q=site:$domain&hl=en-US&gl=US&ceid=US:en';
+
+          debugPrint(
+              '🌐 [$name] Problematic domain detected. Racing Google Mirror...');
+
+          // CRITICAL FIX: Try the Mirror via ALL proxies to ensure one works
+          for (final proxy in proxies) {
+            if (kIsWeb) {
+              futures.add(_tryProxyFetch(
+                  '$proxy${Uri.encodeComponent(googleUrl)}', name, limit));
+            } else {
+              // Mobile can try direct Google
+              futures.add(_tryDirectFetch(googleUrl, name, limit));
+            }
+          }
+        }
       }
 
       // Race all requests
@@ -117,7 +149,7 @@ class RssRemoteDataSource {
           .timeout(_globalTimeout, onTimeout: () => []);
       List<RssItemModel> finalItems = results;
 
-      // 4. FALLBACK
+      // Strategy C: RSS2JSON Fallback (Last Resort)
       if (finalItems.isEmpty) {
         finalItems = await _fetchViaRss2Json(cleanUrl, name, limit);
       }
@@ -173,15 +205,13 @@ class RssRemoteDataSource {
 
       if (htmlContent == null || htmlContent.isEmpty) {
         final proxies = [
+          'https://corsproxy.io/?',
           'https://api.allorigins.win/raw?url=',
-          'https://api.codetabs.com/v1/proxy?quest=',
         ];
 
         for (final proxy in proxies) {
           try {
-            final proxyUrl = proxy.contains('codetabs')
-                ? '$proxy${Uri.encodeComponent(cleanUrl)}'
-                : '$proxy${Uri.encodeComponent(cleanUrl)}';
+            final proxyUrl = '$proxy${Uri.encodeComponent(cleanUrl)}';
 
             final response =
                 await http.get(Uri.parse(proxyUrl)).timeout(_connectTimeout);
@@ -257,8 +287,6 @@ class RssRemoteDataSource {
       if (items.isNotEmpty) {
         debugPrint('✅ [$name] Scraped ${items.length} items');
         _cache[cleanUrl] = _CacheEntry(items: items, timestamp: DateTime.now());
-      } else {
-        debugPrint('⚠️ [$name] No items found.');
       }
 
       return items;
@@ -286,7 +314,7 @@ class RssRemoteDataSource {
         }
       }
     } catch (e) {
-      debugPrint('⚠️ [$name] Direct fetch failed');
+      // Fail silent
     }
     return [];
   }
@@ -313,7 +341,7 @@ class RssRemoteDataSource {
         }
       }
     } catch (e) {
-      // Proxy failed
+      // Fail silent
     }
     return [];
   }
@@ -357,7 +385,16 @@ class RssRemoteDataSource {
 
   List<RssItemModel> _parseRssString(String rssString, String name, int limit) {
     try {
-      final feed = RssFeed.parse(rssString);
+      String cleanXml = rssString;
+      cleanXml =
+          cleanXml.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+
+      final feed = RssFeed.parse(cleanXml);
+
+      if (feed.items.isEmpty) {
+        return _parseXmlManually(cleanXml, name, limit);
+      }
+
       return feed.items.take(limit).map((item) {
         return RssItemModel(
           title: item.title ?? 'No Title',
@@ -369,36 +406,38 @@ class RssRemoteDataSource {
         );
       }).toList();
     } catch (e) {
-      try {
-        final document = XmlDocument.parse(rssString);
-        return document.findAllElements('item').take(limit).map((e) {
-          final pubDate = e.findElements('pubDate').isEmpty
-              ? null
-              : e.findElements('pubDate').first.text;
-          return RssItemModel(
-            title: e.findElements('title').isEmpty
-                ? 'No Title'
-                : e.findElements('title').first.text,
-            link: e.findElements('link').isEmpty
-                ? ''
-                : e.findElements('link').first.text,
-            pubDate: pubDate ?? DateTime.now().toString(),
-            description: e.findElements('description').isEmpty
-                ? ''
-                : e.findElements('description').first.text,
-            publishedAt: _parseStandardDate(pubDate),
-            source: name,
-          );
-        }).toList();
-      } catch (_) {
-        return [];
-      }
+      return _parseXmlManually(rssString, name, limit);
     }
   }
 
-  // ==========================================
-  // ARTICLE CONTENT FETCHER
-  // ==========================================
+  List<RssItemModel> _parseXmlManually(
+      String xmlString, String name, int limit) {
+    try {
+      final document = XmlDocument.parse(xmlString);
+      return document.findAllElements('item').take(limit).map((e) {
+        final pubDate = e.findElements('pubDate').isEmpty
+            ? null
+            : e.findElements('pubDate').first.text;
+        return RssItemModel(
+          title: e.findElements('title').isEmpty
+              ? 'No Title'
+              : e.findElements('title').first.text,
+          link: e.findElements('link').isEmpty
+              ? ''
+              : e.findElements('link').first.text,
+          pubDate: pubDate ?? DateTime.now().toString(),
+          description: e.findElements('description').isEmpty
+              ? ''
+              : e.findElements('description').first.text,
+          publishedAt: _parseStandardDate(pubDate),
+          source: name,
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<String> fetchArticleContent(String url) async {
     try {
       String fetchUrl = url;
@@ -426,10 +465,6 @@ class RssRemoteDataSource {
     }
     return '';
   }
-
-  // ==========================================
-  // UTILITY FUNCTIONS
-  // ==========================================
 
   Future<List<RssItemModel>> _raceSuccess(
       List<Future<List<RssItemModel>>> futures) async {
@@ -475,26 +510,16 @@ class RssRemoteDataSource {
     return trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html');
   }
 
-  // ==========================================
-  // STANDARDIZED DATE PARSER
-  // ==========================================
-
-  /// Parses ISO 8601, RFC 822 (RSS Standard), and common text formats.
-  /// Converts all dates to LOCAL time to fix "21h ago" vs "3h ago" issues.
   DateTime? _parseStandardDate(String? dateText) {
     if (dateText == null || dateText.isEmpty) return null;
 
     String cleanDate = dateText.trim();
 
-    // 1. Try Standard Dart Parse (Handles ISO 8601: 2023-10-27T10:00:00Z)
-    // Dart's parser handles most standard formats automatically.
     DateTime? dt = DateTime.tryParse(cleanDate);
     if (dt != null) {
-      // Convert to local time to ensure consistent comparison with DateTime.now()
       return dt.isUtc ? dt.toLocal() : dt;
     }
 
-    // 2. English Month Map
     final months = {
       'Jan': 1,
       'Feb': 2,
@@ -522,8 +547,6 @@ class RssRemoteDataSource {
       'December': 12,
     };
 
-    // 3. Handle RSS Format: "Tue, 24 Oct 2023 10:00:00 GMT"
-    // Regex: Day, DD Mon YYYY HH:MM:SS TZ
     final rssRegex =
         RegExp(r'(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})');
     final match = rssRegex.firstMatch(cleanDate);
@@ -544,15 +567,12 @@ class RssRemoteDataSource {
           hour != null &&
           minute != null &&
           second != null) {
-        // Construct as UTC (standard for RSS)
         DateTime tempDate =
             DateTime.utc(year, month, day, hour, minute, second);
-        // Convert to local immediately
         return tempDate.toLocal();
       }
     }
 
-    // 4. Handle Slash Format: YYYY/MM/DD
     final slashRegex = RegExp(r'(\d{4})/(\d{1,2})/(\d{1,2})');
     final slashMatch = slashRegex.firstMatch(cleanDate);
     if (slashMatch != null) {
