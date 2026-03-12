@@ -4,9 +4,9 @@ class NewsSource {
   final String name;
   final String url;
   final SourceType type;
-  final Map<String, String>? selectors; // For scraping
-  final bool useWebFeed; // Try webfeed first?
-  final Map<String, String>? headers; // Custom headers
+  final Map<String, String>? selectors;
+  final bool useWebFeed;
+  final Map<String, String>? headers;
 
   NewsSource({
     required this.name,
@@ -25,26 +25,32 @@ class NewsSources {
   // TUNISIAN SOURCES
   // ==========================================
   static final List<NewsSource> tunisian = [
-    // Core RSS
     NewsSource(name: 'Mosaïque FM', url: 'https://www.mosaiquefm.net/ar/rss'),
     NewsSource(
-        name: 'وزارة الداخلية', url: 'https://www.interieur.gov.tn/ar/feed/'),
+      name: 'وزارة الداخلية',
+      url: 'https://www.interieur.gov.tn/ar/feed/',
+    ),
     NewsSource(
         name: 'La Presse',
         url: 'https://www.lapresse.tn/category/actualites/feed'),
+
+    // Working RSS
     NewsSource(
-        name: 'Jawhara FM',
-        url: 'https://www.jawharafm.net/ar/rss/showRss/88/1/1'),
+      name: 'Jawhara FM',
+      url: 'https://www.jawharafm.net/ar/rss/showRss/88/1/17',
+      type: SourceType.rss,
+    ),
     NewsSource(
-        name: 'Express FM', url: 'https://www.radioexpressfm.com/ar/rss'),
+      name: 'Express FM',
+      url: 'https://radioexpressfm.com/ar/feed/',
+      type: SourceType.rss,
+    ),
     NewsSource(
         name: 'Tunisie Focus',
         url: 'https://www.tunisiefocus.com/category/politique/feed'),
     NewsSource(name: 'Babnet', url: 'https://www.babnet.net/feed.php'),
     NewsSource(
         name: 'Jeune Afrique', url: 'https://www.jeuneafrique.com/feed/'),
-
-    // Additional from original model
     NewsSource(name: 'Al Chourouk', url: 'https://www.alchourouk.com/rss'),
     NewsSource(
         name: 'رئاسة الحكومة',
@@ -53,22 +59,6 @@ class NewsSources {
     NewsSource(
         name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
     NewsSource(name: 'Nawaat', url: 'https://nawaat.org/feed/'),
-
-    // Scrapable Sources
-    NewsSource(
-      name: 'التلفزة التونسية',
-      url:
-          'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/%D8%A7%D8%AE%D8%A8%D8%A7%D8%B1%D9%86%D8%A7',
-      type: SourceType.scrapable,
-      selectors: {
-        'item': 'article, .article, .news-item, .item, .col-md-4, .col-lg-4',
-        'title': 'h3, .title, .article-title, h2, h4',
-        'link': 'a[href*="/articles/"], a[href*="/ar/"]',
-        'desc': '',
-        'date': '.date, time, .published-date',
-        'image': 'img, .article-image img',
-      },
-    ),
   ];
 
   // ==========================================
@@ -111,7 +101,6 @@ class NewsSources {
   // INTERNATIONAL SOURCES
   // ==========================================
   static final List<NewsSource> international = [
-    // Core
     NewsSource(
         name: 'Al Jazeera English',
         url: 'https://www.aljazeera.com/xml/rss/all.xml'),
@@ -130,8 +119,6 @@ class NewsSources {
         url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml'),
     NewsSource(
         name: 'The Guardian', url: 'https://www.theguardian.com/world/rss'),
-
-    // Verified/Additional
     NewsSource(
         name: 'The Moscow Times',
         url: 'https://www.themoscowtimes.com/rss/news'),
@@ -153,38 +140,10 @@ class NewsSources {
     NewsSource(
         name: 'The Hindu',
         url: 'https://www.thehindu.com/news/international/?service=rss'),
-
-    // Tech/Other
     NewsSource(
         name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml'),
     NewsSource(name: 'TechCrunch', url: 'https://techcrunch.com/feed/'),
     NewsSource(name: 'Wired', url: 'https://www.wired.com/feed/rss'),
-  ];
-
-  // ==========================================
-  // REDDIT & HACKER NEWS (JSON API)
-  // ==========================================
-  static final List<NewsSource> reddit = [
-    NewsSource(
-      name: 'Reddit Technology',
-      url: 'https://www.reddit.com/r/technology.json',
-      type: SourceType.jsonApi,
-      headers: {'User-Agent': 'Flutter:RSSReader:v1.0 (by /u/yourusername)'},
-    ),
-    NewsSource(
-      name: 'Reddit News',
-      url: 'https://www.reddit.com/r/news.json',
-      type: SourceType.jsonApi,
-      headers: {'User-Agent': 'Flutter:RSSReader:v1.0 (by /u/yourusername)'},
-    ),
-  ];
-
-  static final List<NewsSource> hackerNews = [
-    NewsSource(
-      name: 'Hacker News Top',
-      url: 'https://hacker-news.firebaseio.com/v0/topstories.json',
-      type: SourceType.jsonApi,
-    ),
   ];
 
   // ==========================================
@@ -196,7 +155,5 @@ class NewsSources {
         ...algerian,
         ...iranian,
         ...international,
-        ...reddit,
-        ...hackerNews,
       ];
 }

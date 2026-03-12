@@ -13,7 +13,15 @@
   <title>Breaking News</title>
   <link rel="manifest" href="manifest.json">
 
-    <!-- Add this inside <head> or at the end of <body> -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-HKMWZ1SDTE"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-HKMWZ1SDTE'); // <--- Your ID here
+  </script>
+
   <script>
     // 1. Define the critical URLs to preload (Main Dashboard Feeds)
     const PRELOAD_URLS = [
