@@ -7,23 +7,22 @@ import 'package:xml/xml.dart';
 import '../models/rss_item_model.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
+// Check if we need the Preload Service import (Web only)
+import 'package:news_app/core/services/preload_service.dart';
+
 class RssRemoteDataSource {
-  // Increased timeouts for deployed environments
   static const Duration _connectTimeout = Duration(seconds: 8);
   static const Duration _globalTimeout = Duration(seconds: 10);
 
-  // CACHE: Prevents 429 Rate Limit errors on refresh
   static const Duration _cacheDuration = Duration(minutes: 5);
   final Map<String, _CacheEntry> _cache = {};
 
   Map<String, String> _getHeaders() {
     if (kIsWeb) {
-      // Web browsers handle User-Agent automatically, but we can send Accept
       return {
         'Accept': 'application/rss+xml, application/xml, text/xml, */*',
       };
     } else {
-      // Mobile/Desktop: Spoof a real browser to bypass bot filters (Fixes Express FM)
       return {
         'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
@@ -34,12 +33,10 @@ class RssRemoteDataSource {
     }
   }
 
-  /// Main RSS Fetcher with Caching and Race Condition
-  /// Default limit updated to 4
   Future<List<RssItemModel>> fetchRssFeed(
     String url, {
     String? sourceName,
-    int limit = 4, // UPDATED: Default limit set to 4
+    int limit = 4,
     bool forceRefresh = false,
   }) async {
     final name = sourceName ?? 'Unknown';
@@ -55,17 +52,31 @@ class RssRemoteDataSource {
       }
     }
 
+    // 2. CHECK PRELOADED DATA (Web Only)
+    if (kIsWeb && !forceRefresh) {
+      try {
+        final preloaded =
+            PreloadService.getPreloadedItems(cleanUrl, name, limit);
+        if (preloaded != null && preloaded.isNotEmpty) {
+          debugPrint('⚡ [$name] Loaded from JS Preload');
+          // Save to local cache for subsequent requests
+          _cache[cleanUrl] =
+              _CacheEntry(items: preloaded, timestamp: DateTime.now());
+          return preloaded;
+        }
+      } catch (e) {
+        debugPrint('⚠️ [$name] Preload check failed: $e');
+      }
+    }
+
+    // 3. NETWORK FETCH
     try {
       final List<Future<List<RssItemModel>>> futures = [];
 
-      // 2. Direct Fetch (Mobile/Desktop only)
-      // This works on localhost, but often fails on deploy if IP is blocked
       if (!kIsWeb) {
         futures.add(_tryDirectFetch(cleanUrl, name, limit));
       }
 
-      // 3. Proxy Fetches (Crucial for Deployed Web & if Direct Fetch fails)
-      // We race these to see which one responds first
       final proxies = [
         'https://api.allorigins.win/raw?url=',
         'https://api.codetabs.com/v1/proxy?quest=',
@@ -80,12 +91,12 @@ class RssRemoteDataSource {
         futures.add(_tryProxyFetch(proxyUrl, name, limit));
       }
 
-      // Race the proxies
       final results = await _raceSuccess(futures)
           .timeout(_globalTimeout, onTimeout: () => []);
 
-      // 4. FALLBACK (Last resort)
       List<RssItemModel> finalItems = results;
+
+      // 4. FALLBACK
       if (finalItems.isEmpty) {
         finalItems = await _fetchViaRss2Json(cleanUrl, name, limit);
       }
@@ -95,7 +106,6 @@ class RssRemoteDataSource {
         _cache[cleanUrl] =
             _CacheEntry(items: finalItems, timestamp: DateTime.now());
       } else {
-        // If failed, keep old cache to avoid UI flashing empty
         if (_cache.containsKey(cleanUrl)) {
           return _cache[cleanUrl]!.items;
         }
@@ -109,17 +119,15 @@ class RssRemoteDataSource {
     }
   }
 
-  /// Website Scraper with Caching
   Future<List<RssItemModel>> scrapeWebsite(
     String url,
     Map<String, String> selectors, {
     String? sourceName,
-    int limit = 4, // UPDATED: Default limit set to 4
+    int limit = 4,
   }) async {
     final name = sourceName ?? 'Unknown';
     final cleanUrl = url.trim();
 
-    // 1. Check Cache
     if (_cache.containsKey(cleanUrl)) {
       final entry = _cache[cleanUrl]!;
       if (DateTime.now().difference(entry.timestamp) < _cacheDuration) {
@@ -135,7 +143,6 @@ class RssRemoteDataSource {
         'https://api.codetabs.com/v1/proxy?quest=',
       ];
 
-      // Try proxies sequentially
       for (final proxy in proxies) {
         try {
           final proxyUrl = proxy.contains('codetabs')
@@ -154,7 +161,6 @@ class RssRemoteDataSource {
             }
           }
         } catch (e) {
-          debugPrint('🔄 [$name] Scraping proxy failed, trying next...');
           continue;
         }
       }
@@ -193,7 +199,6 @@ class RssRemoteDataSource {
         }
       }
 
-      // Save to cache
       if (items.isNotEmpty) {
         _cache[cleanUrl] = _CacheEntry(items: items, timestamp: DateTime.now());
       }
@@ -205,7 +210,6 @@ class RssRemoteDataSource {
     }
   }
 
-  /// Article Content Fetcher
   Future<String> fetchArticleContent(String url) async {
     try {
       String fetchUrl = url;
@@ -279,7 +283,7 @@ class RssRemoteDataSource {
         }
       }
     } catch (e) {
-      debugPrint('⚠️ [$name] Direct fetch failed (likely CORS or Bot block)');
+      debugPrint('⚠️ [$name] Direct fetch failed');
     }
     return [];
   }
@@ -294,7 +298,6 @@ class RssRemoteDataSource {
       if (response.statusCode == 200) {
         String body = _sanitizeBody(response);
 
-        // Handle JSON response from proxies like allorigins
         if (body.trim().startsWith('{')) {
           try {
             final data = jsonDecode(body);
@@ -311,7 +314,7 @@ class RssRemoteDataSource {
         }
       }
     } catch (e) {
-      // Proxy failed, ignore as we are racing
+      // Proxy failed
     }
     return [];
   }
@@ -340,8 +343,6 @@ class RssRemoteDataSource {
           }).toList();
           debugPrint('✅ [$name] RSS2JSON Fallback Success');
           return items.take(limit).toList();
-        } else {
-          debugPrint('⚠️ [$name] RSS2JSON Error: ${data['message']}');
         }
       }
     } catch (e) {
@@ -439,6 +440,7 @@ class RssRemoteDataSource {
   }
 }
 
+// Helper class defined OUTSIDE the main class
 class _CacheEntry {
   final List<RssItemModel> items;
   final DateTime timestamp;

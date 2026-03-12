@@ -2,109 +2,500 @@
 <html>
 <head>
   <base href="$FLUTTER_BASE_HREF">
-
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
-
-  <!-- iOS meta tags & icons -->
+  <meta name="description" content="Breaking News - Global RSS Aggregator">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="breaking_news_app">
+  <meta name="apple-mobile-web-app-title" content="Breaking News">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
-
   <title>Breaking News</title>
   <link rel="manifest" href="manifest.json">
+
+    <!-- Add this inside <head> or at the end of <body> -->
+  <script>
+    // 1. Define the critical URLs to preload (Main Dashboard Feeds)
+    const PRELOAD_URLS = [
+      // World News
+      'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+      // Tunisia
+      'https://www.khalijal.com/feed',
+      // Morocco
+      'https://lematin.ma/rss/actualite.xml',
+      // Add a few key others if you like
+    ];
+
+    // 2. Use a reliable proxy to bypass CORS in the browser
+    const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+
+    // 3. Global storage for the preloaded data
+    window.preloadedRssData = {};
+
+    console.log('🚀 [Preload] Starting data fetch in background...');
+
+    PRELOAD_URLS.forEach(url => {
+      fetch(PROXY_URL + encodeURIComponent(url))
+        .then(response => {
+          if (response.ok) return response.text();
+          throw new Error('Network error');
+        })
+        .then(text => {
+          // Store the raw RSS XML string
+          window.preloadedRssData[url] = text;
+          console.log('✅ [Preload] Fetched: ' + url);
+        })
+        .catch(err => {
+          console.error('❌ [Preload] Failed: ' + url, err);
+        });
+    });
+  </script>
   
-  <!-- STYLES FOR THE LOADING SCREEN -->
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap');
+    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
     body {
-      margin: 0;
-      padding: 0;
-      background-color: #0B0E14; /* Match your Dart theme cryptoDarkBg */
+      background-color: #0B0E14;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
     }
 
-    /* The Loading Container */
     #loading {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100vh;
+      background: #0B0E14;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      width: 100%;
-      height: 100vh;
-      position: absolute;
-      top: 0;
-      left: 0;
       z-index: 9999;
-      background-color: #0B0E14;
-      transition: opacity 0.5s ease-out; /* Smooth fade out */
+      transition: opacity 0.6s ease-out, transform 0.6s ease-out;
     }
 
-    /* The Spinner Animation */
-    .spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid rgba(255, 140, 0, 0.2); /* Light orange ring */
-      border-top: 4px solid #FF8C00; /* cryptoOrange solid */
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
+    /* Crypto Grid Background */
+    .grid-bg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-image: 
+        linear-gradient(rgba(255, 140, 0, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 140, 0, 0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      animation: gridMove 20s linear infinite;
     }
 
-    /* Loading Text */
-    .loading-text {
-      margin-top: 20px;
+    @keyframes gridMove {
+      0% { transform: perspective(500px) rotateX(60deg) translateY(0); }
+      100% { transform: perspective(500px) rotateX(60deg) translateY(50px); }
+    }
+
+    /* Central Logo Container */
+    .logo-container {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    /* Animated Logo Icon */
+    .logo-icon {
+      width: 80px; height: 80px;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+
+    .logo-icon svg {
+      width: 100%; height: 100%;
+      filter: drop-shadow(0 0 20px rgba(255, 140, 0, 0.5));
+    }
+
+    .logo-icon .globe {
+      animation: pulse 2s ease-in-out infinite;
+      transform-origin: center;
+    }
+
+    .logo-icon .signal {
+      animation: signalPulse 1.5s ease-out infinite;
+      transform-origin: center;
+      opacity: 0;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    @keyframes signalPulse {
+      0% { transform: scale(0.8); opacity: 1; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+
+    /* Glitch Text Effect */
+    .app-title {
+      font-size: 28px;
+      font-weight: 800;
       color: #FF8C00;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      font-size: 14px;
-      letter-spacing: 2px;
-      font-weight: 600;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      position: relative;
+      text-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
     }
 
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    .app-title::before,
+    .app-title::after {
+      content: 'BREAKING NEWS';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #0B0E14;
+    }
+
+    .app-title::before {
+      left: 2px;
+      text-shadow: -2px 0 #ff0040;
+      clip: rect(24px, 550px, 90px, 0);
+      animation: glitch-anim 3s infinite linear alternate-reverse;
+    }
+
+    .app-title::after {
+      left: -2px;
+      text-shadow: -2px 0 #00ff9f;
+      clip: rect(85px, 550px, 140px, 0);
+      animation: glitch-anim 2s infinite linear alternate-reverse;
+    }
+
+    @keyframes glitch-anim {
+      0% { clip: rect(10px, 9999px, 85px, 0); }
+      20% { clip: rect(63px, 9999px, 130px, 0); }
+      40% { clip: rect(25px, 9999px, 15px, 0); }
+      60% { clip: rect(88px, 9999px, 95px, 0); }
+      80% { clip: rect(42px, 9999px, 68px, 0); }
+      100% { clip: rect(15px, 9999px, 120px, 0); }
+    }
+
+    /* Live Stats Counter */
+    .stats-container {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 30px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-box {
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 24px;
+      font-weight: 700;
+      color: #FF8C00;
+      display: block;
+      text-shadow: 0 0 10px rgba(255, 140, 0, 0.3);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: #5a6270;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-top: 5px;
+    }
+
+    /* Scrolling News Ticker */
+    .ticker-container {
+      width: 100%;
+      max-width: 600px;
+      overflow: hidden;
+      background: rgba(255, 140, 0, 0.05);
+      border: 1px solid rgba(255, 140, 0, 0.2);
+      border-radius: 8px;
+      padding: 15px 20px;
+      position: relative;
+    }
+
+    .ticker-label {
+      position: absolute;
+      left: 0; top: 0;
+      background: #FF8C00;
+      color: #0B0E14;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      z-index: 5;
+    }
+
+    .ticker-wrap {
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .ticker-content {
+      display: inline-block;
+      animation: ticker 15s linear infinite;
+      padding-left: 100%;
+    }
+
+    .ticker-item {
+      display: inline-block;
+      padding: 0 30px;
+      color: #c9d1d9;
+      font-size: 13px;
+      position: relative;
+    }
+
+    .ticker-item::after {
+      content: '●';
+      position: absolute;
+      right: 0;
+      color: #FF8C00;
+      font-size: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    @keyframes ticker {
+      0% { transform: translate3d(0, 0, 0); }
+      100% { transform: translate3d(-100%, 0, 0); }
+    }
+
+    /* Progress Bar with Glow */
+    .progress-container {
+      width: 300px;
+      height: 4px;
+      background: rgba(255, 140, 0, 0.1);
+      border-radius: 2px;
+      margin-top: 30px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #FF8C00, #FFB347, #FF8C00);
+      background-size: 200% 100%;
+      animation: progress 2s ease-in-out infinite, shimmer 2s linear infinite;
+      border-radius: 2px;
+      box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+    }
+
+    @keyframes progress {
+      0% { width: 0%; }
+      50% { width: 70%; }
+      100% { width: 100%; }
+    }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    /* Loading Status Text */
+    .status-text {
+      margin-top: 15px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #5a6270;
+      height: 20px;
+    }
+
+    .status-text::after {
+      content: '';
+      animation: loadingDots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes loadingDots {
+      0% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+      100% { content: ''; }
+    }
+
+    /* Binary Rain Effect (Subtle Background) */
+    .binary-rain {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      opacity: 0.03;
+      pointer-events: none;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      color: #FF8C00;
+    }
+
+    .binary-column {
+      position: absolute;
+      top: -100%;
+      animation: fall linear infinite;
+    }
+
+    @keyframes fall {
+      to { transform: translateY(200vh); }
+    }
+
+    /* Hide animation */
+    #loading.fade-out {
+      opacity: 0;
+      transform: scale(1.1);
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
   
-  <!-- HTML LOADING SCREEN ELEMENTS -->
   <div id="loading">
-    <div class="spinner"></div>
-    <div class="loading-text">LOADING FEED...</div>
+    <!-- Background Effects -->
+    <div class="grid-bg"></div>
+    <div class="binary-rain" id="binaryRain"></div>
+    
+    <!-- Main Content -->
+    <div class="logo-container">
+      <div class="logo-icon">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Globe -->
+          <circle class="globe" cx="50" cy="50" r="35" stroke="#FF8C00" stroke-width="3" fill="none"/>
+          <path class="globe" d="M50 15 Q65 35 65 50 Q65 65 50 85 Q35 65 35 50 Q35 35 50 15" stroke="#FF8C00" stroke-width="2" fill="none" opacity="0.6"/>
+          <line class="globe" x1="15" y1="50" x2="85" y2="50" stroke="#FF8C00" stroke-width="2" opacity="0.6"/>
+          
+          <!-- Signal Waves -->
+          <path class="signal" d="M85 35 Q95 50 85 65" stroke="#FF8C00" stroke-width="2" fill="none"/>
+          <path class="signal" d="M90 30 Q105 50 90 70" stroke="#FF8C00" stroke-width="2" fill="none" style="animation-delay: 0.2s"/>
+          
+          <!-- RSS Dot -->
+          <circle cx="75" cy="25" r="6" fill="#FF8C00">
+            <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+      </div>
+      
+      <h1 class="app-title">BREAKING NEWS</h1>
+    </div>
+
+    <!-- Live Counters -->
+    <div class="stats-container">
+      <div class="stat-box">
+        <span class="stat-number" id="feedCount">0</span>
+        <div class="stat-label">Feeds</div>
+      </div>
+      <div class="stat-box">
+        <span class="stat-number" id="sourceCount">0</span>
+        <div class="stat-label">Sources</div>
+      </div>
+      <div class="stat-box">
+        <span class="stat-number" id="countryCount">0</span>
+        <div class="stat-label">Countries</div>
+      </div>
+    </div>
+
+    <!-- Funny News Ticker -->
+    <div class="ticker-container">
+      <div class="ticker-label">LIVE</div>
+      <div class="ticker-wrap">
+        <div class="ticker-content" id="ticker">
+          <span class="ticker-item">Flutter developer discovers coffee is actually just bean soup...</span>
+          <span class="ticker-item">Breaking: RSS feeds confirm cats have taken over the internet...</span>
+          <span class="ticker-item">Aliens land on Earth, ask for WiFi password...</span>
+          <span class="ticker-item">Study shows 100% of developers google "how to center a div"...</span>
+          <span class="ticker-item">Crypto market volatile, developers switch to stable relationships...</span>
+          <span class="ticker-item">Breaking: Null is not false, developers confused...</span>
+          <span class="ticker-item">World's oldest bug found, still marked as "feature"...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-container">
+      <div class="progress-bar"></div>
+    </div>
+    
+    <div class="status-text" id="statusText">Establishing secure connection</div>
   </div>
 
-  <!-- Standard Flutter Bootstrap -->
   <script src="flutter_bootstrap.js" async></script>
   
-  <!-- SMART SCRIPT TO HIDE LOADER WHEN FLUTTER IS READY -->
   <script>
-    // Uses a MutationObserver to detect when Flutter adds its view to the page
-    // This is compatible with flutter_bootstrap.js and all Flutter versions
+    // Counter Animation
+    function animateCounter(id, target, duration = 2000) {
+      const element = document.getElementById(id);
+      const increment = target / (duration / 16);
+      let current = 0;
+      
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) {
+          current = target;
+          clearInterval(timer);
+        }
+        element.textContent = Math.floor(current);
+      }, 16);
+    }
+
+    // Start counters after slight delay
+    setTimeout(() => {
+      animateCounter('feedCount', 847);
+      animateCounter('sourceCount', 42);
+      animateCounter('countryCount', 15);
+    }, 300);
+
+    // Rotating Status Messages
+    const messages = [
+      "Establishing secure connection",
+      "Decrypting RSS feeds",
+      "Brewing coffee for algorithms",
+      "Convincing pixels to align",
+      "Downloading more RAM",
+      "Calculating meaning of life",
+      "Warming up the hamsters",
+      "Asking Stack Overflow nicely"
+    ];
+    
+    let msgIndex = 0;
+    const statusElement = document.getElementById('statusText');
+    
+    setInterval(() => {
+      msgIndex = (msgIndex + 1) % messages.length;
+      statusElement.textContent = messages[msgIndex];
+    }, 2500);
+
+    // Generate Binary Rain
+    const binaryRain = document.getElementById('binaryRain');
+    for (let i = 0; i < 20; i++) {
+      const column = document.createElement('div');
+      column.className = 'binary-column';
+      column.style.left = Math.random() * 100 + '%';
+      column.style.animationDuration = (Math.random() * 10 + 10) + 's';
+      column.style.animationDelay = Math.random() * 10 + 's';
+      
+      let binary = '';
+      for (let j = 0; j < 50; j++) {
+        binary += Math.random() > 0.5 ? '1' : '0';
+      }
+      column.textContent = binary;
+      binaryRain.appendChild(column);
+    }
+
+    // Flutter Detection
     const observer = new MutationObserver((mutations, obs) => {
-      // Check if the Flutter view (flt-glass-pane or flutter-view) is in the DOM
       const flutterView = document.querySelector('flt-glass-pane') || document.querySelector('flutter-view');
       
       if (flutterView) {
-        // Flutter engine is ready
         const loader = document.getElementById('loading');
-        if (loader) {
-          // Fade out
-          loader.style.opacity = '0';
-          // Remove from DOM after fade
-          setTimeout(() => {
-            loader.remove();
-          }, 500);
-        }
-        // Stop observing
+        loader.classList.add('fade-out');
+        
+        setTimeout(() => {
+          loader.remove();
+        }, 600);
+        
         obs.disconnect();
       }
     });
 
-    // Start observing the body for added children
     observer.observe(document.body, { childList: true, subtree: true });
   </script>
 </body>

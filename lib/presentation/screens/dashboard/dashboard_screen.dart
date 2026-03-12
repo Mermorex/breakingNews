@@ -8,6 +8,7 @@ import 'package:intl/intl.dart' as intl;
 import 'package:news_app/core/utils/responsive.dart';
 import 'package:news_app/core/constants/dashboard_constants.dart'; // IMPORTED CONSTANTS
 import 'package:news_app/data/grok_service.dart';
+import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -87,7 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     _urlSourceMap = {};
 
     // Aggregate all featured lists from DashboardConstants
-    final List<List<Map<String, String>>> allFeaturedLists = [
+    final List<List<NewsSource>> allFeaturedLists = [
       DashboardConstants.tunisianFeatured,
       DashboardConstants.moroccanFeatured,
       DashboardConstants.algerianFeatured,
@@ -97,10 +98,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     for (final list in allFeaturedLists) {
       for (final item in list) {
-        final name = item['name'];
-        final url = item['url'];
-
-        if (name == null || url == null) continue;
+        final name = item.name;
+        final url = item.url;
 
         // 1. Generate keys from Name (e.g., "BBC" -> "bbc")
         final nameKey = name.toLowerCase().replaceAll(' ', '');

@@ -31,12 +31,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 800),
     );
     _controller.addListener(_onControllerUpdate);
+
+    // ✅ FIX: Call load data without awaiting it.
+    // This allows the UI to build immediately and react to state changes.
     _loadData();
   }
 
-  Future<void> _loadData() async {
-    await _controller.loadDashboardData();
-    _fadeController.forward();
+  // Changed to void (no async/await here) to prevent blocking the animation
+  void _loadData() {
+    _controller.loadDashboardData();
   }
 
   @override
@@ -49,12 +52,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _onControllerUpdate() {
+    // ✅ FIX: Trigger animation as soon as data appears
+    // If we have data and the animation hasn't started yet, start it.
+    if (_controller.totalArticles > 0 &&
+        _fadeController.status == AnimationStatus.dismissed) {
+      _fadeController.forward();
+    }
     setState(() {});
   }
 
   void _handleNavigation(int index) {
-    // No drawer logic needed anymore!
     if (_controller.selectedIndex != index) {
+      // Reset animation for new screen if needed, or just switch
       _fadeController.reverse().then((_) {
         _controller.setSelectedIndex(index);
         _fadeController.forward();
@@ -62,7 +71,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // ✅ NEW: Opens a stylish bottom sheet for navigation
   void _openMobileMenu() {
     showModalBottomSheet(
       context: context,
@@ -126,7 +134,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       tileColor: isSelected ? Colors.white.withOpacity(0.05) : null,
       onTap: () {
-        Navigator.pop(context); // Close bottom sheet
+        Navigator.pop(context);
         _handleNavigation(index);
       },
     );
@@ -162,7 +170,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       data: AppTheme.dashboardTheme,
       child: Scaffold(
         backgroundColor: cryptoDarkBg,
-        // ❌ REMOVED: drawer property
         body: Column(
           children: [
             WebNavBar(
@@ -171,10 +178,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               onRefresh: _loadData,
               isLoading: _controller.isLoading,
               searchController: _searchController,
-              onMenuTap: _openMobileMenu, // ✅ Pass the bottom sheet callback
+              onMenuTap: _openMobileMenu,
             ),
             Expanded(
-              child: _controller.isLoading && _controller.selectedIndex == 0
+              // Show loading spinner ONLY if we have ZERO articles
+              child: _controller.selectedIndex == 0 &&
+                      _controller.totalArticles == 0
                   ? const _LoadingView()
                   : AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),

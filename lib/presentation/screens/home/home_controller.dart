@@ -1,5 +1,6 @@
 // lib/presentation/screens/home/home_controller.dart
 import 'package:flutter/material.dart';
+import 'package:news_app/data/models/news_source.dart';
 import '../../../core/constants/dashboard_constants.dart';
 import '../../../data/datasources/rss_remote_datasource.dart';
 import '../../../data/models/rss_item_model.dart';
@@ -8,14 +9,9 @@ class HomeController extends ChangeNotifier {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
   Map<String, List<RssItemModel>> _dashboardData = {};
-  bool _isLoading = true; // Default to true
+  bool _isLoading = true;
   String? _error;
   int _selectedIndex = 0;
-
-  // ✅ FIX: Constructor calls load immediately
-  HomeController() {
-    loadDashboardData();
-  }
 
   // Getters
   Map<String, List<RssItemModel>> get dashboardData => _dashboardData;
@@ -23,25 +19,18 @@ class HomeController extends ChangeNotifier {
   String? get error => _error;
   int get selectedIndex => _selectedIndex;
 
-  // Computed
-  int get totalArticles => _dashboardData.values.fold(
-        0,
-        (sum, items) => sum + items.length,
-      );
+  int get totalArticles =>
+      _dashboardData.values.fold(0, (sum, items) => sum + items.length);
 
-  // Featured sources from constants
-  List<Map<String, String>> get tunisianFeatured =>
-      DashboardConstants.tunisianFeatured;
-  List<Map<String, String>> get moroccanFeatured =>
-      DashboardConstants.moroccanFeatured;
-  List<Map<String, String>> get internationalFeatured =>
+  // Featured Lists (Now returning strongly typed NewsSource lists)
+  List<NewsSource> get tunisianFeatured => DashboardConstants.tunisianFeatured;
+  List<NewsSource> get moroccanFeatured => DashboardConstants.moroccanFeatured;
+  List<NewsSource> get internationalFeatured =>
       DashboardConstants.internationalFeatured;
-  List<Map<String, String>> get algerianFeatured =>
-      DashboardConstants.algerianFeatured;
-  List<Map<String, String>> get iranianFeatured =>
-      DashboardConstants.iranianFeatured;
+  List<NewsSource> get algerianFeatured => DashboardConstants.algerianFeatured;
+  List<NewsSource> get iranianFeatured => DashboardConstants.iranianFeatured;
 
-  // Get articles by region prefix
+  // Article Getters
   List<RssItemModel> getTunisianArticles() => _getArticlesByRegion('TN');
   List<RssItemModel> getFrenchArticles() => _getArticlesByRegion('FR');
   List<RssItemModel> getMoroccanArticles() => _getArticlesByRegion('MA');
@@ -49,7 +38,6 @@ class HomeController extends ChangeNotifier {
   List<RssItemModel> getAlgerianArticles() => _getArticlesByRegion('DZ');
   List<RssItemModel> getIranianArticles() => _getArticlesByRegion('IR');
 
-  // Featured articles for dashboard
   List<RssItemModel> get tunisianFeaturedArticles =>
       getTunisianArticles().take(3).toList();
   List<RssItemModel> get frenchFeaturedArticles =>
@@ -63,7 +51,6 @@ class HomeController extends ChangeNotifier {
   List<RssItemModel> get iranianFeaturedArticles =>
       getIranianArticles().take(3).toList();
 
-  // Count getters
   int get tunisianCount => getTunisianArticles().length;
   int get frenchCount => getFrenchArticles().length;
   int get moroccanCount => getMoroccanArticles().length;
@@ -77,62 +64,75 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadDashboardData() async {
-    // Don't set isLoading to true if we want progressive UI,
-    // or handle it specifically for the "First Launch" scenario.
-    // Here, we keep isLoading true only if we have ZERO data initially.
+    // 1. Setup initial loading state
     if (_dashboardData.isEmpty) {
       _isLoading = true;
       _error = null;
       notifyListeners();
     }
 
-    _dashboardData.clear(); // Clear old data to ensure freshness
+    // 2. Create a list of tasks (Futures)
+    // We iterate over the strongly typed NewsSource lists
+    final List<Future> tasks = [];
 
-    final allSources = [
-      ...tunisianFeatured.map((s) => {...s, 'region': 'TN'}),
-      ...moroccanFeatured.map((s) => {...s, 'region': 'MA'}),
-      ...algerianFeatured.map((s) => {...s, 'region': 'DZ'}),
-      ...iranianFeatured.map((s) => {...s, 'region': 'IR'}),
-      ...internationalFeatured.map((s) => {...s, 'region': 'INT'}),
-    ];
+    // Helper to add tasks to the list
+    void addFetchTasks(List<NewsSource> sources, String regionCode) {
+      for (final source in sources) {
+        tasks.add(
+          _fetchSourceData(source, regionCode).then((_) {
+            // ✅ MAGIC HAPPENS HERE:
+            // As soon as ONE task finishes, turn off the initial loading spinner
+            // so the UI renders the dashboard immediately.
+            if (_isLoading) {
+              _isLoading = false;
+              notifyListeners();
+            }
+          }).catchError((e) {
+            debugPrint('❌ Task failed: ${source.name}');
+          }),
+        );
+      }
+    }
 
-    // We create a list of futures but we DON'T wait for all of them to finish
-    // before updating the UI.
-    final futures =
-        allSources.map((source) => _fetchSourceData(source)).toList();
+    // Add tasks for each region
+    addFetchTasks(tunisianFeatured, 'TN');
+    addFetchTasks(moroccanFeatured, 'MA');
+    addFetchTasks(algerianFeatured, 'DZ');
+    addFetchTasks(iranianFeatured, 'IR');
+    addFetchTasks(internationalFeatured, 'INT');
 
-    // We run them all at once
-    await Future.wait(futures);
+    // 3. Run all tasks in parallel
+    await Future.wait(tasks);
 
-    // Once everything is done, we turn off the main loading flag
+    // 4. Final cleanup
     _isLoading = false;
     notifyListeners();
   }
 
-  Future<void> _fetchSourceData(Map<String, String> source) async {
+  // Updated to accept NewsSource object and region string
+  Future<void> _fetchSourceData(NewsSource source, String region) async {
     try {
-      final cleanUrl = source['url']!.trim();
-      final sourceName = source['name']!;
+      final cleanUrl = source.url.trim();
+      final sourceName = source.name;
 
       final items = await _dataSource
           .fetchRssFeed(cleanUrl, limit: 6)
           .timeout(const Duration(seconds: 15), onTimeout: () {
-        debugPrint('⏱️ TIMEOUT: ${source['name']}');
+        debugPrint('⏱️ TIMEOUT: $sourceName');
         return <RssItemModel>[];
       });
 
-      final key = '${source['region']}_${source['name']}';
+      // Store data with composite key: "REGION_Sourcename"
+      final key = '${region}_$sourceName';
       _dashboardData[key] = items;
 
-      debugPrint('✅ Loaded ${items.length} articles from ${source['name']}');
+      debugPrint('✅ Loaded ${items.length} articles from $sourceName');
 
-      // ✅ CRITICAL FIX: Notify listeners HERE
-      // This tells the UI to rebuild immediately after THIS specific source loads.
-      // This creates the "One by One" loading effect.
+      // Notify listeners updates the specific card on screen
       notifyListeners();
     } catch (e) {
-      debugPrint('❌ Error loading ${source['name']}: $e');
-      final key = '${source['region']}_${source['name']}';
+      debugPrint('❌ Error loading ${source.name}: $e');
+      final key = '${region}_${source.name}';
       _dashboardData[key] = [];
     }
   }
