@@ -36,7 +36,6 @@ class RssRemoteDataSource {
   // MAIN ENTRY POINT
   // ==========================================
 
-  /// Universal method to fetch feed based on source type
   Future<List<RssItemModel>> getFeed(NewsSource source,
       {int limit = 10, bool forceRefresh = false}) async {
     switch (source.type) {
@@ -153,7 +152,6 @@ class RssRemoteDataSource {
     final cleanUrl = url.trim();
     if (cleanUrl.isEmpty) return [];
 
-    // Cache Check
     if (!forceRefresh && _cache.containsKey(cleanUrl)) {
       final entry = _cache[cleanUrl]!;
       if (DateTime.now().difference(entry.timestamp) < _cacheDuration) {
@@ -164,7 +162,6 @@ class RssRemoteDataSource {
     try {
       String? htmlContent;
 
-      // 1. Try Direct Fetch (Mobile/Desktop)
       if (!kIsWeb) {
         try {
           final res = await http
@@ -174,7 +171,6 @@ class RssRemoteDataSource {
         } catch (_) {}
       }
 
-      // 2. Fallback to Proxies
       if (htmlContent == null || htmlContent.isEmpty) {
         final proxies = [
           'https://api.allorigins.win/raw?url=',
@@ -192,7 +188,6 @@ class RssRemoteDataSource {
 
             if (response.statusCode == 200) {
               String body = _sanitizeBody(response);
-              // Unwrap JSON if needed
               if (body.trim().startsWith('{')) {
                 try {
                   final data = jsonDecode(body);
@@ -222,13 +217,8 @@ class RssRemoteDataSource {
       for (var i = 0; i < elements.length && i < limit; i++) {
         final element = elements[i];
 
-        // --- SMART TITLE FETCHING ---
         String? title;
-
-        // 1. Try specific selector
         var titleElement = element.querySelector(selectors['title'] ?? '');
-
-        // 2. Fallback: Prioritize Header Tags (h3, h2)
         titleElement ??=
             element.querySelector('h3 a, a h3, h3, h2 a, a h2, h2');
 
@@ -236,11 +226,9 @@ class RssRemoteDataSource {
           title = titleElement.text.trim();
         }
 
-        // --- Link ---
         String? link =
             element.querySelector(selectors['link'] ?? 'a')?.attributes['href'];
 
-        // --- Date ---
         String? dateText;
         var dateEl = element.querySelector(selectors['date'] ?? 'time, .date');
         if (dateEl != null) {
@@ -260,7 +248,7 @@ class RssRemoteDataSource {
             link: link,
             description: '',
             pubDate: dateText ?? DateTime.now().toString(),
-            publishedAt: _parseArabicDate(dateText),
+            publishedAt: _parseStandardDate(dateText),
             source: name,
           ));
         }
@@ -313,7 +301,6 @@ class RssRemoteDataSource {
       if (response.statusCode == 200) {
         String body = _sanitizeBody(response);
 
-        // Handle JSON-wrapped responses (like AllOrigins)
         if (body.trim().startsWith('{')) {
           try {
             final data = jsonDecode(body);
@@ -349,7 +336,7 @@ class RssRemoteDataSource {
                   link: item['link'] ?? '',
                   pubDate: item['pubDate'] ?? '',
                   description: item['description'] ?? '',
-                  publishedAt: DateTime.tryParse(item['pubDate'] ?? ''),
+                  publishedAt: _parseStandardDate(item['pubDate']),
                   source: name,
                 );
               })
@@ -377,7 +364,7 @@ class RssRemoteDataSource {
           link: item.link ?? '',
           pubDate: item.pubDate ?? DateTime.now().toString(),
           description: item.description ?? '',
-          publishedAt: _parseArabicDate(item.pubDate),
+          publishedAt: _parseStandardDate(item.pubDate),
           source: name,
         );
       }).toList();
@@ -399,7 +386,7 @@ class RssRemoteDataSource {
             description: e.findElements('description').isEmpty
                 ? ''
                 : e.findElements('description').first.text,
-            publishedAt: _parseArabicDate(pubDate),
+            publishedAt: _parseStandardDate(pubDate),
             source: name,
           );
         }).toList();
@@ -489,19 +476,83 @@ class RssRemoteDataSource {
   }
 
   // ==========================================
-  // DATE PARSING (FIXED & SINGLE INSTANCE)
+  // STANDARDIZED DATE PARSER
   // ==========================================
-  DateTime? _parseArabicDate(String? dateText) {
+
+  /// Parses ISO 8601, RFC 822 (RSS Standard), and common text formats.
+  /// Converts all dates to LOCAL time to fix "21h ago" vs "3h ago" issues.
+  DateTime? _parseStandardDate(String? dateText) {
     if (dateText == null || dateText.isEmpty) return null;
 
-    // FIX 1: Trim whitespace/newlines (fixes " 2026-03-12...")
     String cleanDate = dateText.trim();
 
-    // FIX 2: Try standard ISO parsing first
+    // 1. Try Standard Dart Parse (Handles ISO 8601: 2023-10-27T10:00:00Z)
+    // Dart's parser handles most standard formats automatically.
     DateTime? dt = DateTime.tryParse(cleanDate);
-    if (dt != null) return dt;
+    if (dt != null) {
+      // Convert to local time to ensure consistent comparison with DateTime.now()
+      return dt.isUtc ? dt.toLocal() : dt;
+    }
 
-    // FIX 3: Handle Slash Format: YYYY/MM/DD
+    // 2. English Month Map
+    final months = {
+      'Jan': 1,
+      'Feb': 2,
+      'Mar': 3,
+      'Apr': 4,
+      'May': 5,
+      'Jun': 6,
+      'Jul': 7,
+      'Aug': 8,
+      'Sep': 9,
+      'Oct': 10,
+      'Nov': 11,
+      'Dec': 12,
+      'January': 1,
+      'February': 2,
+      'March': 3,
+      'April': 4,
+      'May': 5,
+      'June': 6,
+      'July': 7,
+      'August': 8,
+      'September': 9,
+      'October': 10,
+      'November': 11,
+      'December': 12,
+    };
+
+    // 3. Handle RSS Format: "Tue, 24 Oct 2023 10:00:00 GMT"
+    // Regex: Day, DD Mon YYYY HH:MM:SS TZ
+    final rssRegex =
+        RegExp(r'(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})');
+    final match = rssRegex.firstMatch(cleanDate);
+
+    if (match != null) {
+      final day = int.tryParse(match.group(1)!);
+      final monthStr = match.group(2);
+      final year = int.tryParse(match.group(3)!);
+      final hour = int.tryParse(match.group(4)!);
+      final minute = int.tryParse(match.group(5)!);
+      final second = int.tryParse(match.group(6)!);
+
+      final month = months[monthStr];
+
+      if (day != null &&
+          month != null &&
+          year != null &&
+          hour != null &&
+          minute != null &&
+          second != null) {
+        // Construct as UTC (standard for RSS)
+        DateTime tempDate =
+            DateTime.utc(year, month, day, hour, minute, second);
+        // Convert to local immediately
+        return tempDate.toLocal();
+      }
+    }
+
+    // 4. Handle Slash Format: YYYY/MM/DD
     final slashRegex = RegExp(r'(\d{4})/(\d{1,2})/(\d{1,2})');
     final slashMatch = slashRegex.firstMatch(cleanDate);
     if (slashMatch != null) {
@@ -512,44 +563,7 @@ class RssRemoteDataSource {
       );
     }
 
-    // FIX 4: Handle Arabic Months
-    final arabicMonths = {
-      'جانفي': 1,
-      'يناير': 1,
-      'فيفري': 2,
-      'فبراير': 2,
-      'مارس': 3,
-      'أفريل': 4,
-      'أبريل': 4,
-      'ماي': 5,
-      'مايو': 5,
-      'جوان': 6,
-      'يونيو': 6,
-      'جويلية': 7,
-      'يوليو': 7,
-      'أوت': 8,
-      'أغسطس': 8,
-      'سبتمبر': 9,
-      'أكتوبر': 10,
-      'نوفمبر': 11,
-      'ديسمبر': 12,
-    };
-    try {
-      String normalized =
-          cleanDate.replaceAll('ة', 'ه').replaceAll('  ', ' ').trim();
-      final regex = RegExp(r'(\d{1,2})\s+([^\d\s]+)\s+(\d{4})');
-      final match = regex.firstMatch(normalized);
-      if (match != null) {
-        final day = int.parse(match.group(1)!);
-        final monthName = match.group(2)!.trim();
-        final year = int.parse(match.group(3)!);
-        final month = arabicMonths[monthName];
-        if (month != null) return DateTime(year, month, day);
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
+    return null;
   }
 }
 
