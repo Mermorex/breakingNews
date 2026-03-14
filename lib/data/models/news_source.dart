@@ -51,15 +51,9 @@ class NewsSources {
         name: 'Jeune Afrique', url: 'https://www.jeuneafrique.com/feed/'),
     NewsSource(name: 'Al Chourouk', url: 'https://www.alchourouk.com/rss'),
     NewsSource(
-        name: 'رئاسة الحكومة',
-        url:
-            'https://www.tunisie.gov.tn/uploads/Document/fluxRssActualite.xml'),
-    NewsSource(
         name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
     NewsSource(name: 'Nawaat', url: 'https://nawaat.org/feed/'),
   ];
-
-  // ==========================================
   // MOROCCAN SOURCES (MA)
   // ==========================================
   static final List<NewsSource> moroccan = [
