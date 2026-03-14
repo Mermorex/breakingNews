@@ -115,7 +115,7 @@ class RssRemoteDataSource {
         'presstv',
         'presstv.ir',
         'tunisie.gov.tn',
-        'babnet'
+        'babnet',
       ];
 
       bool isProblematic = problematicDomains.any((d) => cleanUrl.contains(d));
