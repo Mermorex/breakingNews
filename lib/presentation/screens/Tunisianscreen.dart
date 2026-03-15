@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
@@ -32,7 +31,6 @@ class TunisianNewsScreen extends StatefulWidget {
 class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  // Sources from Constants
   List<NewsSource> get _rssSources => DashboardConstants.allTunisianSources;
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
@@ -42,10 +40,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   final Map<String, String> _sourceErrors = {};
 
   // --- LANGUAGE STATE ---
-  // Modes: 'original', 'arabic', 'english'
   String _currentLangMode = 'original';
-
-  // Cache key format: "originalText-targetLang"
   final Map<String, String> _translationCache = {};
   final Set<String> _loadingTranslations = {};
 
@@ -154,7 +149,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   // --- LANGUAGE LOGIC ---
-
   void _toggleLanguage() {
     setState(() {
       if (_currentLangMode == 'original') {
@@ -169,7 +163,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
 
   Future<String> _getDisplayTitle(RssItemModel article) async {
     final original = article.title;
-
     if (_currentLangMode == 'original') return original;
 
     final targetLang = _currentLangMode;
@@ -178,7 +171,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     if (_translationCache.containsKey(cacheKey)) {
       return _translationCache[cacheKey]!;
     }
-
     if (_loadingTranslations.contains(cacheKey)) return original;
 
     return _loadTranslation(original, targetLang);
@@ -186,13 +178,11 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
 
   Future<String> _loadTranslation(String text, String targetLang) async {
     if (text.isEmpty) return text;
-
     final cacheKey = '$text-$targetLang';
     _loadingTranslations.add(cacheKey);
 
     try {
       bool toArabic = targetLang == 'arabic';
-
       bool isAlreadyArabic = _containsArabic(text);
       if ((toArabic && isAlreadyArabic) || (!toArabic && !isAlreadyArabic)) {
         return text;
@@ -209,7 +199,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         final data = jsonDecode(response.body);
         if (data['responseStatus'] == 200) {
           final translated = data['responseData']['translatedText'] ?? text;
-
           if (mounted) {
             setState(() {
               _translationCache[cacheKey] = translated;
@@ -227,7 +216,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   // --- DAILY RECAP LOGIC ---
-
   Future<void> _generateDailyRecap() async {
     if (_dashboardData.isEmpty) return;
 
@@ -269,7 +257,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
 
       final bool generateInEnglish = (_currentLangMode == 'english');
       final bool isArabic = !generateInEnglish;
-
       final String topicName = isArabic ? "تونس" : "Tunisia";
 
       final recap = await MistralService().generateDailyRecap(
@@ -303,7 +290,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   }
 
   // --- HELPERS ---
-
   String _getDisplaySource(RssItemModel article) {
     if (article.source != null &&
         article.source!.isNotEmpty &&
@@ -369,18 +355,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     }
   }
 
-  Future<void> _copyLink(String url) async {
-    await Clipboard.setData(ClipboardData(text: url));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Link copied', style: GoogleFonts.montserrat()),
-        backgroundColor: cryptoOrange,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
   TextStyle _getTextStyle(bool isArabic, TextStyle style) {
     return isArabic
         ? GoogleFonts.notoKufiArabic(textStyle: style)
@@ -393,7 +367,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   bool get _isArabicContent => _currentLangMode == 'arabic';
 
   // --- BUILD ---
-
   @override
   Widget build(BuildContext context) {
     final content = _buildContent();
@@ -436,15 +409,11 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     return CustomScrollView(
       slivers: [
         if (_showDailyRecap) _buildDailyRecapSection(),
-
         SliverToBoxAdapter(child: _buildStatusHeader()),
-
-        // UPDATED: Shows immediately, regardless of loading state
         if (!_showDailyRecap)
           SliverToBoxAdapter(
             child: _buildDailyRecapTriggerContainer(),
           ),
-
         ..._rssSources.asMap().entries.map((entry) {
           final index = entry.key;
           final source = entry.value;
@@ -467,7 +436,6 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
   // --- UI COMPONENTS ---
 
   Widget _buildDailyRecapTriggerContainer() {
-    // Disable if global loading is active OR if data is empty
     final bool isDisabled = _isGlobalLoading || _dashboardData.isEmpty;
 
     return Container(
@@ -758,11 +726,11 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
               color: Colors.white.withOpacity(0.05),
             ),
           ),
-          child: Text(
-            _dailyRecap ?? '',
-            style: _getTextStyle(
-              isArabic,
-              TextStyle(
+          child: Text.rich(
+            _parseRecapMarkdown(
+              _dailyRecap ?? '',
+              isArabic: isArabic,
+              baseStyle: TextStyle(
                 fontSize: 15,
                 color: Colors.white.withOpacity(0.9),
                 height: 1.7,
@@ -774,6 +742,38 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         ),
       ],
     );
+  }
+
+  // Markdown Parser for Daily Recap
+  TextSpan _parseRecapMarkdown(String text,
+      {required bool isArabic, required TextStyle baseStyle}) {
+    final children = <TextSpan>[];
+    final regExp = RegExp(r'\*\*(.*?)\*\*');
+    int lastIndex = 0;
+
+    for (final match in regExp.allMatches(text)) {
+      if (match.start > lastIndex) {
+        children.add(TextSpan(
+          text: text.substring(lastIndex, match.start),
+          style: _getTextStyle(isArabic, baseStyle),
+        ));
+      }
+      children.add(TextSpan(
+        text: match.group(1),
+        style: _getTextStyle(
+            isArabic, baseStyle.copyWith(fontWeight: FontWeight.bold)),
+      ));
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      children.add(TextSpan(
+        text: text.substring(lastIndex),
+        style: _getTextStyle(isArabic, baseStyle),
+      ));
+    }
+
+    return TextSpan(children: children);
   }
 
   Widget _buildStatusHeader() {
@@ -858,7 +858,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         displayText = 'EN';
         iconData = Icons.translate;
         break;
-      default: // Original
+      default:
         displayText = 'SRC';
         iconData = Icons.language;
     }
@@ -1059,14 +1059,141 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     );
   }
 
+  // --- UPDATED: Card Builders using Private StatefulWidgets ---
+
   Widget _buildMainArticleCard(RssItemModel article) {
+    return _TunisianMainArticleCard(
+      article: article,
+      isArabic: _isArabicContent,
+      getDisplayTitle: _getDisplayTitle,
+      containsArabic: _containsArabic,
+      getTextStyle: _getTextStyle,
+      getDisplaySource: _getDisplaySource,
+    );
+  }
+
+  Widget _buildSideArticleCard(RssItemModel article) {
+    return _TunisianSideArticleCard(
+      article: article,
+      isArabic: _isArabicContent,
+      getDisplayTitle: _getDisplayTitle,
+      containsArabic: _containsArabic,
+      getTextStyle: _getTextStyle,
+      getDisplaySource: _getDisplaySource,
+    );
+  }
+}
+
+// --- PRIVATE STATEFUL WIDGETS FOR CARDS ---
+
+class _TunisianMainArticleCard extends StatefulWidget {
+  final RssItemModel article;
+  final bool isArabic;
+  final Future<String> Function(RssItemModel) getDisplayTitle;
+  final bool Function(String) containsArabic;
+  final TextStyle Function(bool, TextStyle) getTextStyle;
+  final String Function(RssItemModel) getDisplaySource;
+
+  const _TunisianMainArticleCard({
+    required this.article,
+    required this.isArabic,
+    required this.getDisplayTitle,
+    required this.containsArabic,
+    required this.getTextStyle,
+    required this.getDisplaySource,
+  });
+
+  @override
+  State<_TunisianMainArticleCard> createState() =>
+      _TunisianMainArticleCardState();
+}
+
+class _TunisianMainArticleCardState extends State<_TunisianMainArticleCard>
+    with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+  bool _isLoading = false;
+  String? _summary;
+
+  late AnimationController _controller;
+  late Animation<double> _iconTurn;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleRecap() async {
+    if (_isLoading) return;
+
+    if (_isExpanded) {
+      setState(() => _isExpanded = false);
+      _controller.reverse();
+      return;
+    }
+
+    setState(() {
+      _isExpanded = true;
+      _isLoading = true;
+    });
+    _controller.forward();
+
+    if (_summary == null) {
+      try {
+        final result = await MistralService().summarizeArticle(
+          widget.article.title,
+          widget.article.description ?? '',
+          isArabic: widget.isArabic,
+        );
+        if (mounted)
+          setState(() {
+            _summary = result;
+            _isLoading = false;
+          });
+      } catch (e) {
+        if (mounted)
+          setState(() {
+            _summary = "Error generating summary.";
+            _isLoading = false;
+          });
+      }
+    } else {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    if (url.isEmpty) return;
+    final uri = Uri.parse(url.trim());
+    if (await canLaunchUrl(uri))
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
-    final String displaySource = _getDisplaySource(article);
+    final String displaySource = widget.getDisplaySource(widget.article);
+    final bool useArabicStyle =
+        widget.isArabic || widget.containsArabic(widget.article.title);
 
     return GestureDetector(
-      onTap: () => _openArticle(article.link),
-      child: Container(
-        height: isMobile ? 280 : 320,
+      onTap: () => _launchUrl(widget.article.link),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        height: _isExpanded ? (isMobile ? 420 : 460) : (isMobile ? 280 : 320),
         decoration: BoxDecoration(
             color: cryptoCardBg,
             borderRadius: BorderRadius.circular(24),
@@ -1089,8 +1216,9 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
               Padding(
                 padding: EdgeInsets.all(isMobile ? 20.0 : 24.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: useArabicStyle
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
                   children: [
                     Row(children: [
                       Container(
@@ -1108,18 +1236,18 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                       Icon(Icons.access_time_rounded,
                           size: 14, color: Colors.white54),
                       const SizedBox(width: 6),
-                      Text(_formatTimeAgo(article.publishedAt),
+                      Text(_formatTimeAgo(widget.article.publishedAt),
                           style: GoogleFonts.montserrat(
                               fontSize: 12, color: Colors.white54)),
                     ]),
                     const SizedBox(height: 12),
                     FutureBuilder<String>(
-                        future: _getDisplayTitle(article),
+                        future: widget.getDisplayTitle(widget.article),
                         builder: (context, snapshot) {
-                          final text = snapshot.data ?? article.title;
-                          final isArabic = _containsArabic(text);
+                          final text = snapshot.data ?? widget.article.title;
+                          final isArabic = widget.containsArabic(text);
                           return Text(text,
-                              style: _getTextStyle(
+                              style: widget.getTextStyle(
                                   isArabic,
                                   TextStyle(
                                       fontSize: isMobile ? 18 : 20,
@@ -1131,96 +1259,110 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
                               textAlign:
                                   isArabic ? TextAlign.right : TextAlign.left);
                         }),
-                    const SizedBox(height: 12),
-                    Text(_getSnippet(article.description),
-                        style: GoogleFonts.montserrat(
-                            fontSize: 13,
-                            color: Colors.white.withOpacity(0.6),
-                            height: 1.5),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis),
-                    const Spacer(),
+                    if (!_isExpanded) ...[
+                      const SizedBox(height: 12),
+                      Text(_getSnippet(widget.article.description),
+                          style: widget.getTextStyle(
+                              useArabicStyle,
+                              TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white.withOpacity(0.6),
+                                  height: 1.5)),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: useArabicStyle
+                              ? TextAlign.right
+                              : TextAlign.left),
+                      const Expanded(child: SizedBox()),
+                    ],
+                    if (_isExpanded) ...[
+                      const SizedBox(height: 16),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.05))),
+                          child: _isLoading
+                              ? Center(
+                                  child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: cryptoGold)))
+                              : Text(_summary ?? "Unable to generate summary.",
+                                  style: widget.getTextStyle(
+                                      useArabicStyle,
+                                      TextStyle(
+                                          fontSize: 13,
+                                          color: cryptoGold.withOpacity(0.9),
+                                          height: 1.5,
+                                          fontStyle: FontStyle.italic)),
+                                  maxLines: 5,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: useArabicStyle
+                                      ? TextAlign.right
+                                      : TextAlign.left),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     Row(
                       children: [
                         const Spacer(),
-                        Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                                color: cryptoOrange.withOpacity(0.15),
-                                shape: BoxShape.circle),
-                            child: Icon(Icons.arrow_outward_rounded,
-                                color: cryptoOrange, size: 18)),
+                        Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                                onTap: _handleRecap,
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                            colors: _isExpanded
+                                                ? [
+                                                    Colors.deepPurpleAccent,
+                                                    Colors.purple
+                                                  ]
+                                                : [cryptoGold, cryptoOrange]),
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                              color: (_isExpanded
+                                                      ? Colors.purple
+                                                      : cryptoOrange)
+                                                  .withOpacity(0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2))
+                                        ]),
+                                    child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          RotationTransition(
+                                              turns: _iconTurn,
+                                              child: const Icon(
+                                                  Icons.auto_awesome,
+                                                  size: 16,
+                                                  color: Colors.white)),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                              _isExpanded
+                                                  ? 'Close'
+                                                  : 'AI Recap',
+                                              style: GoogleFonts.montserrat(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white))
+                                        ])))),
                       ],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSideArticleCard(RssItemModel article) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final String displaySource = _getDisplaySource(article);
-
-    return GestureDetector(
-      onTap: () => _openArticle(article.link),
-      child: Container(
-        height: isMobile ? 150 : 152,
-        decoration: BoxDecoration(
-            color: cryptoCardBg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: cryptoGold.withOpacity(0.1))),
-        child: Padding(
-          padding: EdgeInsets.all(isMobile ? 16.0 : 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Text(displaySource.toUpperCase(),
-                      style: GoogleFonts.montserrat(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: cryptoGold)),
-                  const Spacer(),
-                  Icon(Icons.access_time_rounded,
-                      size: 12, color: Colors.white38),
-                  const SizedBox(width: 4),
-                  Text(_formatTimeAgo(article.publishedAt),
-                      style: GoogleFonts.montserrat(
-                          fontSize: 10, color: Colors.white38)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              FutureBuilder<String>(
-                  future: _getDisplayTitle(article),
-                  builder: (context, snapshot) {
-                    final text = snapshot.data ?? article.title;
-                    final isArabic = _containsArabic(text);
-                    return Text(text,
-                        style: _getTextStyle(
-                            isArabic,
-                            TextStyle(
-                                fontSize: isMobile ? 13 : 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                                height: 1.4)),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: isArabic ? TextAlign.right : TextAlign.left);
-                  }),
-              const Spacer(),
-              Row(
-                children: [
-                  Icon(Icons.arrow_right_alt,
-                      size: 16, color: cryptoGold.withOpacity(0.5)),
-                ],
-              )
             ],
           ),
         ),
@@ -1245,5 +1387,271 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
         .replaceAll(RegExp(r'<[^>]*>'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+}
+
+class _TunisianSideArticleCard extends StatefulWidget {
+  final RssItemModel article;
+  final bool isArabic;
+  final Future<String> Function(RssItemModel) getDisplayTitle;
+  final bool Function(String) containsArabic;
+  final TextStyle Function(bool, TextStyle) getTextStyle;
+  final String Function(RssItemModel) getDisplaySource;
+
+  const _TunisianSideArticleCard({
+    required this.article,
+    required this.isArabic,
+    required this.getDisplayTitle,
+    required this.containsArabic,
+    required this.getTextStyle,
+    required this.getDisplaySource,
+  });
+
+  @override
+  State<_TunisianSideArticleCard> createState() =>
+      _TunisianSideArticleCardState();
+}
+
+class _TunisianSideArticleCardState extends State<_TunisianSideArticleCard>
+    with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+  bool _isLoading = false;
+  String? _summary;
+
+  late AnimationController _controller;
+  late Animation<double> _iconTurn;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleRecap() async {
+    if (_isLoading) return;
+
+    if (_isExpanded) {
+      setState(() => _isExpanded = false);
+      _controller.reverse();
+      return;
+    }
+
+    setState(() {
+      _isExpanded = true;
+      _isLoading = true;
+    });
+    _controller.forward();
+
+    if (_summary == null) {
+      try {
+        final result = await MistralService().summarizeArticle(
+          widget.article.title,
+          widget.article.description ?? '',
+          isArabic: widget.isArabic,
+        );
+        if (mounted)
+          setState(() {
+            _summary = result;
+            _isLoading = false;
+          });
+      } catch (e) {
+        if (mounted)
+          setState(() {
+            _summary = "Error generating summary.";
+            _isLoading = false;
+          });
+      }
+    } else {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    if (url.isEmpty) return;
+    final uri = Uri.parse(url.trim());
+    if (await canLaunchUrl(uri))
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool useArabicStyle =
+        widget.isArabic || widget.containsArabic(widget.article.title);
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final String displaySource = widget.getDisplaySource(widget.article);
+
+    return GestureDetector(
+      onTap: () => _launchUrl(widget.article.link),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        height: _isExpanded ? (isMobile ? 380 : 400) : (isMobile ? 150 : 152),
+        decoration: BoxDecoration(
+            color: cryptoCardBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: cryptoGold.withOpacity(0.1))),
+        child: Padding(
+          padding: EdgeInsets.all(isMobile ? 16.0 : 20.0),
+          child: Column(
+            crossAxisAlignment: useArabicStyle
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(displaySource.toUpperCase(),
+                      style: GoogleFonts.montserrat(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: cryptoGold)),
+                  const Spacer(),
+                  Icon(Icons.access_time_rounded,
+                      size: 12, color: Colors.white38),
+                  const SizedBox(width: 4),
+                  Text(_formatTimeAgo(widget.article.publishedAt),
+                      style: GoogleFonts.montserrat(
+                          fontSize: 10, color: Colors.white38)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              FutureBuilder<String>(
+                  future: widget.getDisplayTitle(widget.article),
+                  builder: (context, snapshot) {
+                    final text = snapshot.data ?? widget.article.title;
+                    final isArabic = widget.containsArabic(text);
+                    return Text(text,
+                        style: widget.getTextStyle(
+                            isArabic,
+                            TextStyle(
+                                fontSize: isMobile ? 13 : 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                height: 1.4)),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: isArabic ? TextAlign.right : TextAlign.left);
+                  }),
+              if (!_isExpanded) const Expanded(child: SizedBox()),
+              if (_isExpanded) ...[
+                const SizedBox(height: 12),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.05))),
+                    child: _isLoading
+                        ? const Center(
+                            child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 1.5, color: cryptoGold)))
+                        : Text(
+                            _summary ?? "Unable to generate summary.",
+                            style: widget.getTextStyle(
+                                useArabicStyle,
+                                TextStyle(
+                                    fontSize: 12,
+                                    color: cryptoGold.withOpacity(0.9),
+                                    height: 1.4,
+                                    fontStyle: FontStyle.italic)),
+                            maxLines: 6,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: useArabicStyle
+                                ? TextAlign.right
+                                : TextAlign.left,
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Row(
+                children: [
+                  if (!_isExpanded)
+                    Icon(Icons.arrow_right_alt,
+                        size: 16, color: cryptoGold.withOpacity(0.5)),
+                  if (!_isExpanded) const Spacer(),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _handleRecap,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                                colors: _isExpanded
+                                    ? [Colors.deepPurpleAccent, Colors.purple]
+                                    : [
+                                        cryptoGold.withOpacity(0.8),
+                                        cryptoOrange.withOpacity(0.8)
+                                      ]),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: (_isExpanded
+                                          ? Colors.purple
+                                          : cryptoOrange)
+                                      .withOpacity(0.2),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1))
+                            ]),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RotationTransition(
+                              turns: _iconTurn,
+                              child: const Icon(Icons.auto_awesome,
+                                  size: 14, color: Colors.white),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isExpanded ? 'Close' : 'Recap',
+                              style: GoogleFonts.montserrat(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime? date) {
+    if (date == null) return 'Just now';
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    if (diff.inDays < 1) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return intl.DateFormat('MMM d').format(date);
   }
 }

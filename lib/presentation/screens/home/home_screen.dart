@@ -175,10 +175,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             WebNavBar(
               selectedIndex: _controller.selectedIndex,
               onItemSelected: _handleNavigation,
-              onRefresh: _loadData,
-              isLoading: _controller.isLoading,
-              searchController: _searchController,
-              onMenuTap: _openMobileMenu,
             ),
             Expanded(
               // Show loading spinner ONLY if we have ZERO articles
