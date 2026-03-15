@@ -170,11 +170,7 @@ class NewsSources {
           'https://news.google.com/rss/search?q=site:reuters.com&hl=en-US&gl=US&ceid=US:en',
       countryCode: 'US',
     ),
-    NewsSource(
-      name: 'CNN',
-      url: 'http://rss.cnn.com/rss/edition.rss',
-      countryCode: 'US',
-    ),
+
     NewsSource(
       name: 'NYT World',
       url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
