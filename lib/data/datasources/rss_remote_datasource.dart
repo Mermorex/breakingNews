@@ -88,13 +88,14 @@ class RssRemoteDataSource {
     try {
       final List<Future<List<RssItemModel>>> futures = [];
 
+      // Standard Proxies (Good for World News)
       final proxies = [
-        'https://corsproxy.io/?',
         'https://api.allorigins.win/raw?url=',
         'https://api.codetabs.com/v1/proxy?quest=',
+        'https://corsproxy.io/?',
       ];
 
-      // Strategy A: Try Original URL
+      // Strategy A: Try Original URL (Works for World News)
       if (!kIsWeb) {
         futures.add(_tryDirectFetch(cleanUrl, name, limit));
       }
@@ -105,7 +106,6 @@ class RssRemoteDataSource {
       }
 
       // Strategy B: Smart Fallback (Google News Mirror)
-      // We identify domains that are consistently problematic (Iranian gov, some Arabic sites)
       final problematicDomains = [
         'mehrnews',
         'tasnim',
@@ -116,29 +116,34 @@ class RssRemoteDataSource {
         'presstv.ir',
         'tunisie.gov.tn',
         'babnet',
+        'irannewsdaily',
       ];
 
       bool isProblematic = problematicDomains.any((d) => cleanUrl.contains(d));
+
+      // FIX: Define mirror URL here so we can use it in fallback later
+      String? googleMirrorUrl;
 
       if (isProblematic) {
         final uri = Uri.tryParse(cleanUrl);
         if (uri != null && uri.host.isNotEmpty) {
           final domain = uri.host.replaceFirst('www.', '');
-          // Create Google News RSS URL for this specific domain
-          final googleUrl =
+          googleMirrorUrl =
               'https://news.google.com/rss/search?q=site:$domain&hl=en-US&gl=US&ceid=US:en';
 
           debugPrint(
               '🌐 [$name] Problematic domain detected. Racing Google Mirror...');
 
-          // CRITICAL FIX: Try the Mirror via ALL proxies to ensure one works
+          // Try the Mirror via ALL proxies
           for (final proxy in proxies) {
             if (kIsWeb) {
               futures.add(_tryProxyFetch(
-                  '$proxy${Uri.encodeComponent(googleUrl)}', name, limit));
+                  '$proxy${Uri.encodeComponent(googleMirrorUrl)}',
+                  name,
+                  limit));
             } else {
               // Mobile can try direct Google
-              futures.add(_tryDirectFetch(googleUrl, name, limit));
+              futures.add(_tryDirectFetch(googleMirrorUrl, name, limit));
             }
           }
         }
@@ -151,7 +156,14 @@ class RssRemoteDataSource {
 
       // Strategy C: RSS2JSON Fallback (Last Resort)
       if (finalItems.isEmpty) {
-        finalItems = await _fetchViaRss2Json(cleanUrl, name, limit);
+        // FIX: If problematic, try RSS2JSON on the MIRROR URL, not the dead original
+        if (isProblematic && googleMirrorUrl != null) {
+          debugPrint('🚑 [$name] Attempting RSS2JSON on Google Mirror...');
+          finalItems = await _fetchViaRss2Json(googleMirrorUrl, name, limit);
+        } else {
+          // Standard fallback for normal sites
+          finalItems = await _fetchViaRss2Json(cleanUrl, name, limit);
+        }
       }
 
       // 5. SAVE TO CACHE
@@ -205,8 +217,8 @@ class RssRemoteDataSource {
 
       if (htmlContent == null || htmlContent.isEmpty) {
         final proxies = [
-          'https://corsproxy.io/?',
           'https://api.allorigins.win/raw?url=',
+          'https://corsproxy.io/?',
         ];
 
         for (final proxy in proxies) {

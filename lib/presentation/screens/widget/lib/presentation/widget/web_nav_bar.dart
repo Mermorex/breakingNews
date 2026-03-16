@@ -6,13 +6,15 @@ import 'package:news_app/core/utils/responsive.dart';
 class WebNavBar extends StatelessWidget {
   final int selectedIndex;
   final Function(int) onItemSelected;
-
-  // Removed: onRefresh, isLoading, searchController, onMenuTap
+  final VoidCallback? onRefresh;
+  final bool isLoading;
 
   const WebNavBar({
     super.key,
     required this.selectedIndex,
     required this.onItemSelected,
+    this.onRefresh,
+    this.isLoading = false,
   });
 
   @override
@@ -33,7 +35,7 @@ class WebNavBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // --- Logo Section (Clickable) ---
+          // --- Logo Section ---
           _buildLogo(),
 
           // --- Navigation Links (Visible on Desktop) ---
@@ -50,7 +52,7 @@ class WebNavBar extends StatelessWidget {
 
   Widget _buildLogo() {
     return InkWell(
-      onTap: () => onItemSelected(0), // Navigate to Dashboard
+      onTap: () => onItemSelected(0),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -155,12 +157,12 @@ class WebNavBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        // --- LIVE INDICATOR (Visible on Mobile & Desktop) ---
-        _buildLiveStatus(),
+        // --- LIVE STATUS & REFRESH BUTTON ---
+        _buildLiveStatusWithRefresh(context),
 
         const SizedBox(width: 20),
 
-        // Mobile Menu Button (Creative)
+        // Mobile Menu Button
         if (compact) _buildCreativeMenuButton(context),
 
         const SizedBox(width: 16),
@@ -168,11 +170,29 @@ class WebNavBar extends StatelessWidget {
     );
   }
 
-  // --- LIVE STATUS WIDGET ---
-  Widget _buildLiveStatus() {
+  // --- UPDATED: INVERSE ORDER & MOBILE FIX ---
+  Widget _buildLiveStatusWithRefresh(BuildContext context) {
+    // Check if mobile to hide the text message and prevent overflow
+    final isMobile = ResponsiveHelper.isMobile(context);
+
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Glowing Live Dot
+        // 1. Text Message (Left side) - Hidden on mobile to fix overflow
+        if (!isMobile)
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Text(
+              'Refresh for better experience',
+              style: GoogleFonts.montserrat(
+                color: Colors.white54,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+
+        // 2. Live Status (Right side)
         Container(
           width: 8,
           height: 8,
@@ -203,7 +223,7 @@ class WebNavBar extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            // Real-time Clock using manual formatting to avoid intl crashes
+            // Real-time Clock
             StreamBuilder<DateTime>(
               stream: Stream.periodic(
                   const Duration(seconds: 1), (_) => DateTime.now()),

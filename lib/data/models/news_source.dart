@@ -44,8 +44,11 @@ class NewsSources {
       type: SourceType.rss,
     ),
     NewsSource(
-        name: 'Tunisie Focus',
-        url: 'https://www.tunisiefocus.com/category/politique/feed'),
+      name: 'Tunisie Focus',
+      url: 'https://www.tunisiefocus.com/category/politique/feed',
+      type: SourceType.rss,
+      countryCode: 'TN',
+    ),
     NewsSource(name: 'Babnet', url: 'https://www.babnet.net/feed.php'),
     NewsSource(
         name: 'Jeune Afrique', url: 'https://www.jeuneafrique.com/feed/'),
@@ -132,6 +135,19 @@ class NewsSources {
     NewsSource(
       name: 'Fars News',
       url: 'https://www.farsnews.ir/en/rss',
+      countryCode: 'IR',
+    ),
+    NewsSource(
+      name: 'UNA-OIC',
+      url: 'https://una-oic.org/en/feed/',
+      countryCode: 'IR', // Using IR tag to group with regional news
+    ),
+    NewsSource(
+      name: 'Iran International',
+      // STRATEGY: They have no official RSS. We use Google News RSS Mirror.
+      // This URL directly queries Google News for "site:iranintl.com"
+      url:
+          'https://news.google.com/rss/search?q=site:iranintl.com&hl=en-US&gl=US&ceid=US:en',
       countryCode: 'IR',
     ),
   ];

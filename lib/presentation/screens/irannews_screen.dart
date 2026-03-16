@@ -35,14 +35,9 @@ class IranianNewsScreen extends StatefulWidget {
 class _IranianNewsScreenState extends State<IranianNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  final List<NewsSource> _rssSources = [
-    NewsSource(name: 'Mehr News', url: 'https://en.mehrnews.com/rss'),
-    NewsSource(
-        name: 'Tasnim News',
-        url: 'https://www.tasnimnews.ir/en/rss/feed/0/0/8/1/TopStories'),
-    NewsSource(name: 'Tehran Times', url: 'https://www.tehrantimes.com/rss'),
-    NewsSource(name: 'Iran News Daily', url: 'https://irannewsdaily.com/feed/'),
-  ];
+  // FIX: Replaced hardcoded list with the centralized list from NewsSources
+  // This automatically includes the new UNA-OIC and Iran International sources.
+  final List<NewsSource> _rssSources = NewsSources.iranian;
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
   final Set<int> _loadingIndices = {};

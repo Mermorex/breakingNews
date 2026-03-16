@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
 import 'package:news_app/core/utils/responsive.dart';
-import 'package:news_app/core/constants/dashboard_constants.dart'; // IMPORTED CONSTANTS
+import 'package:news_app/core/constants/dashboard_constants.dart';
 import 'package:news_app/data/grok_service.dart';
 import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
@@ -62,7 +62,9 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin {
-  bool _isArabicContent = false;
+  // --- LANGUAGE STATE ---
+  // Modes: 'original', 'arabic', 'english'
+  String _currentLangMode = 'original';
 
   // OPTIMIZATION: Cache translations
   final Map<String, String> _translationCache = {};
@@ -79,7 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void initState() {
     super.initState();
-    _initializeSourceMap(); // Generate map from constants
+    _initializeSourceMap();
     _updateRecentNews();
   }
 
@@ -87,7 +89,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _initializeSourceMap() {
     _urlSourceMap = {};
 
-    // Aggregate all featured lists from DashboardConstants
     final List<List<NewsSource>> allFeaturedLists = [
       DashboardConstants.tunisianFeatured,
       DashboardConstants.moroccanFeatured,
@@ -101,28 +102,19 @@ class _DashboardScreenState extends State<DashboardScreen>
         final name = item.name;
         final url = item.url;
 
-        // 1. Generate keys from Name (e.g., "BBC" -> "bbc")
         final nameKey = name.toLowerCase().replaceAll(' ', '');
         _urlSourceMap[nameKey] = name;
 
-        // 2. Generate keys from URL domain
         try {
           final uri = Uri.parse(url);
-          String host = uri.host; // e.g., "www.bbc.co.uk"
-
-          // Remove 'www.'
+          String host = uri.host;
           if (host.startsWith('www.')) {
             host = host.substring(4);
           }
-
-          // Add full host (e.g., "bbc.co.uk")
           _urlSourceMap[host] = name;
-
-          // Add domain name part (e.g., "bbc" from "bbc.co.uk" or "mosaiquefm" from "mosaiquefm.net")
           final domainParts = host.split('.');
           if (domainParts.isNotEmpty) {
             final mainPart = domainParts.first;
-            // Avoid adding generic parts like 'com', 'net', but add specific names
             if (mainPart.length > 2) {
               _urlSourceMap[mainPart] = name;
             }
@@ -161,23 +153,33 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
 
     _recentNews = allItems.take(10).toList();
-    _currentTickerText = _recentNews.map((e) => e.title).join('   •   ');
-    _initTicker();
 
-    if (_isArabicContent) {
+    // Update ticker based on current mode
+    if (_currentLangMode == 'original') {
+      _currentTickerText = _recentNews.map((e) => e.title).join('   •   ');
+      _initTicker();
+    } else {
       _translateTickerText();
     }
   }
 
   void _toggleLanguage() {
-    _isArabicContent = !_isArabicContent;
-    setState(() {});
+    setState(() {
+      if (_currentLangMode == 'original') {
+        _currentLangMode = 'arabic';
+      } else if (_currentLangMode == 'arabic') {
+        _currentLangMode = 'english';
+      } else {
+        _currentLangMode = 'original';
+      }
+    });
 
-    if (_isArabicContent) {
-      _translateTickerText();
-    } else {
+    // Update Ticker
+    if (_currentLangMode == 'original') {
       _currentTickerText = _recentNews.map((e) => e.title).join('   •   ');
       _initTicker();
+    } else {
+      _translateTickerText();
     }
   }
 
@@ -187,10 +189,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     List<String> translatedTitles = [];
 
     for (var title in titles) {
-      translatedTitles.add(await _getTranslatedText(title));
+      translatedTitles.add(await _getTranslatedText(title, _currentLangMode));
     }
 
-    if (_isArabicContent && mounted) {
+    if ((_currentLangMode == 'arabic' || _currentLangMode == 'english') &&
+        mounted) {
       setState(() {
         _currentTickerText = translatedTitles.join('   •   ');
       });
@@ -200,45 +203,62 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   String _getDisplayTitle(RssItemModel article) {
     final original = article.title;
-    if (!_isArabicContent) return original;
+    if (_currentLangMode == 'original') return original;
 
-    if (_translationCache.containsKey(original)) {
-      return _translationCache[original]!;
+    final cacheKey = '$original-$_currentLangMode';
+    if (_translationCache.containsKey(cacheKey)) {
+      return _translationCache[cacheKey]!;
     }
 
-    if (!_loadingTranslations.contains(original)) {
-      _loadTranslation(original);
+    if (!_loadingTranslations.contains(cacheKey)) {
+      _loadTranslation(original, _currentLangMode);
     }
     return original;
   }
 
-  Future<void> _loadTranslation(String text) async {
+  Future<void> _loadTranslation(String text, String targetMode) async {
     if (text.isEmpty) return;
-    _loadingTranslations.add(text);
+    final cacheKey = '$text-$targetMode';
+    _loadingTranslations.add(cacheKey);
 
     try {
-      final translated = await _translateText(text, toArabic: true);
+      final translated = await _translateText(text, targetMode);
       if (translated != text && mounted) {
         setState(() {
-          _translationCache[text] = translated;
+          _translationCache[cacheKey] = translated;
         });
       }
     } finally {
-      _loadingTranslations.remove(text);
+      _loadingTranslations.remove(cacheKey);
     }
   }
 
-  Future<String> _getTranslatedText(String text) async {
-    if (_translationCache.containsKey(text)) return _translationCache[text]!;
-    return await _translateText(text, toArabic: true);
+  Future<String> _getTranslatedText(String text, String targetMode) async {
+    final cacheKey = '$text-$targetMode';
+    if (_translationCache.containsKey(cacheKey))
+      return _translationCache[cacheKey]!;
+    return await _translateText(text, targetMode);
   }
 
-  Future<String> _translateText(String text, {bool toArabic = true}) async {
+  Future<String> _translateText(String text, String targetMode) async {
     if (text.isEmpty) return text;
-    if (_translationCache.containsKey(text)) return _translationCache[text]!;
+    final cacheKey = '$text-$targetMode';
+    if (_translationCache.containsKey(cacheKey))
+      return _translationCache[cacheKey]!;
+
+    // Determine direction
+    bool toArabic = targetMode == 'arabic';
+    bool isSourceArabic = _containsArabic(text);
+
+    // Skip if already in target language
+    if ((toArabic && isSourceArabic) ||
+        (!toArabic && !isSourceArabic && targetMode == 'english')) {
+      return text;
+    }
 
     try {
-      final sourceLang = toArabic ? 'en' : 'ar';
+      // Using auto-detect for source ('auto') is safer for mixed feeds
+      final sourceLang = 'auto';
       final targetLang = toArabic ? 'ar' : 'en';
 
       final url = Uri.parse(
@@ -252,7 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (data != null && data[0] != null && data[0] is List) {
           final translatedParts =
               (data[0] as List).map((e) => (e as List).first.toString()).join();
-          _translationCache[text] = translatedParts;
+          _translationCache[cacheKey] = translatedParts;
           return translatedParts;
         }
       }
@@ -264,7 +284,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // --- SOURCE EXTRACTION HELPER ---
   String _getDisplaySource(RssItemModel article) {
-    // First try article.source if it's set and not generic
     if (article.source != null &&
         article.source!.isNotEmpty &&
         article.source != 'Unknown' &&
@@ -272,7 +291,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       return _cleanSourceName(article.source!);
     }
 
-    // Try to extract from article link URL using our generated map
     if (article.link.isNotEmpty) {
       final urlSource = _extractSourceFromUrl(article.link);
       if (urlSource != null) return urlSource;
@@ -297,15 +315,13 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   String _cleanSourceName(String name) {
-    // Clean up common RSS feed suffixes
     final cleanName = name
-        .replaceAll(RegExp(r'\s*-\s*.*$'), '') // Remove " - World News" etc
-        .replaceAll(RegExp(r'\s*\|.*$'), '') // Remove " | Breaking News" etc
+        .replaceAll(RegExp(r'\s*-\s*.*$'), '')
+        .replaceAll(RegExp(r'\s*\|.*$'), '')
         .replaceAll(RegExp(r'\s*RSS.*$', caseSensitive: false), '')
         .replaceAll(RegExp(r'\s*Feed.*$', caseSensitive: false), '')
         .trim();
 
-    // Specific mappings (Can be expanded or moved to constants if needed)
     final Map<String, String> mappings = {
       'BBC News': 'BBC',
       'Reuters.com': 'Reuters',
@@ -326,10 +342,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   String? _extractSourceFromUrl(String url) {
     final lowerUrl = url.toLowerCase();
-
-    // Check against keys generated from DashboardConstants
     for (final entry in _urlSourceMap.entries) {
-      // Exact match or contained match for domain/key
       if (lowerUrl.contains(entry.key.toLowerCase())) {
         return entry.value;
       }
@@ -550,6 +563,23 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildLangToggle() {
+    String displayText;
+    IconData iconData;
+
+    switch (_currentLangMode) {
+      case 'arabic':
+        displayText = 'AR';
+        iconData = Icons.translate;
+        break;
+      case 'english':
+        displayText = 'EN';
+        iconData = Icons.translate;
+        break;
+      default:
+        displayText = 'SRC';
+        iconData = Icons.language;
+    }
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -562,9 +592,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white.withOpacity(0.3))),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.translate, color: Colors.white, size: 16),
+            Icon(iconData, color: Colors.white, size: 16),
             const SizedBox(width: 6),
-            Text(_isArabicContent ? 'AR' : 'EN',
+            Text(displayText,
                 style: GoogleFonts.montserrat(
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -707,27 +737,44 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // --- UPDATED: Main Card Wrapper ---
+  // --- UPDATED: Card Wrappers ---
+
   Widget _buildMainArticleCard(RssItemModel article) {
+    // Determine UI direction based on mode
+    // If Arabic -> Force RTL/Arabic style
+    // If English -> Force LTR/English style
+    // If Original -> Detect from content
+    final bool forceArabicUI = _currentLangMode == 'arabic';
+
+    // Determine AI Summary language
+    // Original -> Arabic (Default)
+    // Arabic -> Arabic
+    // English -> English
+    final bool summaryInArabic = _currentLangMode != 'english';
+
     return _ExpandableArticleCard(
       article: article,
-      isArabic: _isArabicContent,
+      isArabic: forceArabicUI, // Used for UI layout
+      isSummaryArabic: summaryInArabic, // Used for AI generation
       getDisplayTitle: _getDisplayTitle,
       containsArabic: _containsArabic,
       getTextStyle: _getTextStyle,
-      getDisplaySource: _getDisplaySource, // NEW: Pass source extractor
+      getDisplaySource: _getDisplaySource,
     );
   }
 
-  // --- UPDATED: Side Card Wrapper ---
   Widget _buildSideArticleCard(RssItemModel article) {
+    final bool forceArabicUI = _currentLangMode == 'arabic';
+    final bool summaryInArabic = _currentLangMode != 'english';
+
     return _ExpandableSideArticleCard(
       article: article,
-      isArabic: _isArabicContent,
+      isArabic: forceArabicUI,
+      isSummaryArabic: summaryInArabic,
       getDisplayTitle: _getDisplayTitle,
       containsArabic: _containsArabic,
       getTextStyle: _getTextStyle,
-      getDisplaySource: _getDisplaySource, // NEW: Pass source extractor
+      getDisplaySource: _getDisplaySource,
     );
   }
 
@@ -772,19 +819,21 @@ class _DashboardScreenState extends State<DashboardScreen>
 
 class _ExpandableArticleCard extends StatefulWidget {
   final RssItemModel article;
-  final bool isArabic;
+  final bool isArabic; // UI Direction
+  final bool isSummaryArabic; // AI Language
   final String Function(RssItemModel) getDisplayTitle;
   final bool Function(String) containsArabic;
   final TextStyle Function(bool, TextStyle) getTextStyle;
-  final String Function(RssItemModel) getDisplaySource; // NEW
+  final String Function(RssItemModel) getDisplaySource;
 
   const _ExpandableArticleCard({
     required this.article,
     required this.isArabic,
+    required this.isSummaryArabic,
     required this.getDisplayTitle,
     required this.containsArabic,
     required this.getTextStyle,
-    required this.getDisplaySource, // NEW
+    required this.getDisplaySource,
   });
 
   @override
@@ -838,7 +887,7 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
         final result = await MistralService().summarizeArticle(
           widget.article.title,
           widget.article.description ?? '',
-          isArabic: widget.isArabic,
+          isArabic: widget.isSummaryArabic, // Use specific flag
         );
         if (mounted)
           setState(() {
@@ -861,10 +910,13 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
   Widget build(BuildContext context) {
     final bool hasArabicContent = widget.containsArabic(widget.article.title);
     final String displayTitle = widget.getDisplayTitle(widget.article);
-    final bool useArabicStyle = widget.isArabic || hasArabicContent;
-    final isMobile = ResponsiveHelper.isMobile(context);
 
-    // USE THE SOURCE EXTRACTOR
+    // Logic: If mode is Arabic -> Force Arabic Style.
+    // If mode is not Arabic (English/Original) -> Use Arabic style only if content is Arabic.
+    // This handles the "Original" mode correctly by detecting content.
+    final bool useArabicStyle = widget.isArabic || hasArabicContent;
+
+    final isMobile = ResponsiveHelper.isMobile(context);
     final String displaySource = widget.getDisplaySource(widget.article);
 
     return GestureDetector(
@@ -900,7 +952,6 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
                       : CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header Row
                     Row(children: [
                       Container(
                           padding: const EdgeInsets.symmetric(
@@ -1076,18 +1127,20 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
 class _ExpandableSideArticleCard extends StatefulWidget {
   final RssItemModel article;
   final bool isArabic;
+  final bool isSummaryArabic;
   final String Function(RssItemModel) getDisplayTitle;
   final bool Function(String) containsArabic;
   final TextStyle Function(bool, TextStyle) getTextStyle;
-  final String Function(RssItemModel) getDisplaySource; // NEW
+  final String Function(RssItemModel) getDisplaySource;
 
   const _ExpandableSideArticleCard({
     required this.article,
     required this.isArabic,
+    required this.isSummaryArabic,
     required this.getDisplayTitle,
     required this.containsArabic,
     required this.getTextStyle,
-    required this.getDisplaySource, // NEW
+    required this.getDisplaySource,
   });
 
   @override
@@ -1142,7 +1195,7 @@ class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
         final result = await MistralService().summarizeArticle(
           widget.article.title,
           widget.article.description ?? '',
-          isArabic: widget.isArabic,
+          isArabic: widget.isSummaryArabic,
         );
         if (mounted)
           setState(() {
@@ -1167,8 +1220,6 @@ class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
     final String displayTitle = widget.getDisplayTitle(widget.article);
     final bool useArabicStyle = widget.isArabic || hasArabicContent;
     final isMobile = ResponsiveHelper.isMobile(context);
-
-    // USE THE SOURCE EXTRACTOR
     final String displaySource = widget.getDisplaySource(widget.article);
 
     return GestureDetector(
@@ -1189,7 +1240,6 @@ class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
                 : CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header Row
               Row(
                 children: [
                   Text(displaySource.toUpperCase(),
