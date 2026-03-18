@@ -212,7 +212,7 @@ class _AlgeriaNewsScreenState extends State<AlgeriaNewsScreen> {
       allArticles.sort((a, b) => (b.publishedAt ?? DateTime.now())
           .compareTo(a.publishedAt ?? DateTime.now()));
 
-      final recentArticles = allArticles.take(15).toList();
+      final recentArticles = allArticles.take(40).toList();
 
       final StringBuffer contextBuffer = StringBuffer();
       contextBuffer.writeln(

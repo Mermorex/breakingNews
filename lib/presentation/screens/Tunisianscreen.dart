@@ -233,7 +233,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       allArticles.sort((a, b) => (b.publishedAt ?? DateTime.now())
           .compareTo(a.publishedAt ?? DateTime.now()));
 
-      final recentArticles = allArticles.take(15).toList();
+      final recentArticles = allArticles.take(80).toList();
 
       final StringBuffer contextBuffer = StringBuffer();
       contextBuffer.writeln(

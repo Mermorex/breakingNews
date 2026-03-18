@@ -204,7 +204,7 @@ class _MoroccoNewsScreenState extends State<MoroccoNewsScreen> {
       allArticles.sort((a, b) => (b.publishedAt ?? DateTime.now())
           .compareTo(a.publishedAt ?? DateTime.now()));
 
-      final recentArticles = allArticles.take(15).toList();
+      final recentArticles = allArticles.take(50).toList();
 
       final StringBuffer contextBuffer = StringBuffer();
       contextBuffer.writeln(

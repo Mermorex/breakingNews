@@ -38,6 +38,7 @@ class NewsSources {
       url: 'https://www.jawharafm.net/ar/rss/showRss/88/1/17',
       type: SourceType.rss,
     ),
+    NewsSource(name: 'diwanfm', url: 'https://diwanfm.net/feed'),
     NewsSource(
       name: 'Express FM',
       url: 'https://radioexpressfm.com/ar/feed/',
@@ -56,6 +57,23 @@ class NewsSources {
     NewsSource(
         name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
     NewsSource(name: 'Nawaat', url: 'https://nawaat.org/feed/'),
+    // Inside the tunisian list
+    NewsSource(
+      name: 'Tunisia TV',
+      url:
+          'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/اخبارنا',
+      category: 'national',
+      type: SourceType.scrapable,
+      selectors: {
+        'item': '.card', // Both .card-lg-list and .card-landscape
+        'title': 'h3 a',
+        'link': 'h3 a',
+        'image': 'img',
+        'date': 'time',
+        'category': '.desc > a:first-child',
+        'description': 'p', // Only present in featured article
+      },
+    ),
   ];
   // MOROCCAN SOURCES (MA)
   // ==========================================
