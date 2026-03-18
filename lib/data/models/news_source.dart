@@ -61,17 +61,15 @@ class NewsSources {
     NewsSource(
       name: 'Tunisia TV',
       url:
-          'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/اخبارنا',
-      category: 'national',
+          'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/%D8%A7%D8%AE%D8%A8%D8%A7%D8%B1%D9%86%D8%A7',
       type: SourceType.scrapable,
+      countryCode: 'TN',
       selectors: {
-        'item': '.card', // Both .card-lg-list and .card-landscape
+        'item': '.card', // Covers both .card-lg-list and .card-landscape
         'title': 'h3 a',
         'link': 'h3 a',
-        'image': 'img',
         'date': 'time',
-        'category': '.desc > a:first-child',
-        'description': 'p', // Only present in featured article
+        'description': 'p',
       },
     ),
   ];

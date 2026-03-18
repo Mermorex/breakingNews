@@ -392,43 +392,6 @@ class RssRemoteDataSource {
 
   Future<List<RssItemModel>> _fetchJsonApi(
       String url, String name, int limit) async {
-    try {
-      // Use proxies for Web to avoid CORS issues
-      String fetchUrl = url;
-      if (kIsWeb) {
-        fetchUrl =
-            'https://api.allorigins.win/raw?url=${Uri.encodeComponent(url)}';
-      }
-
-      final response = await http
-          .get(Uri.parse(fetchUrl), headers: _getHeaders())
-          .timeout(_connectTimeout);
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-
-        return data.take(limit).map((item) {
-          // WordPress JSON structure mapping
-          String title = item['title']['rendered'] ?? 'No Title';
-          String link = item['link'] ?? '';
-
-          // Clean up description (remove HTML tags)
-          String description = item['excerpt']?['rendered'] ?? '';
-          description = description.replaceAll(RegExp(r'<[^>]*>'), '');
-
-          return RssItemModel(
-            title: title,
-            link: link,
-            description: description,
-            pubDate: item['date'] ?? DateTime.now().toString(),
-            publishedAt: DateTime.tryParse(item['date'] ?? ''),
-            source: name,
-          );
-        }).toList();
-      }
-    } catch (e) {
-      debugPrint('❌ [$name] JSON API Error: $e');
-    }
     return [];
   }
 
@@ -445,27 +408,9 @@ class RssRemoteDataSource {
       }
 
       return feed.items.take(limit).map((item) {
-        String title = item.title ?? 'No Title';
-        String link = item.link ?? '';
-
-        // ===================================================
-        // DATA CLEANING LOGIC FOR GOOGLE NEWS
-        // ===================================================
-        // 1. Fix Title: Google formats titles as "Title - Source Name". We remove the last part.
-        if (title.contains(' - ') && name != 'Google News') {
-          // Check if it looks like a Google title format
-          // Example: "عاجل: قرار جديد - Tunisia TV" -> "عاجل: قرار جديد"
-          title = title.split(' - ').first;
-        }
-
-        // 2. Fix Link: Google links are redirects.
-        // We can't easily decode them on device, but we can ensure they are valid URLs.
-        // Note: If you want the real link, you would need a backend service to follow the redirect.
-        // For now, the Google link works but takes user to Google News first.
-
         return RssItemModel(
-          title: title,
-          link: link,
+          title: item.title ?? 'No Title',
+          link: item.link ?? '',
           pubDate: item.pubDate ?? DateTime.now().toString(),
           description: item.description ?? '',
           publishedAt: _parseStandardDate(item.pubDate),
