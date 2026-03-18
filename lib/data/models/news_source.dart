@@ -58,20 +58,6 @@ class NewsSources {
         name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
     NewsSource(name: 'Nawaat', url: 'https://nawaat.org/feed/'),
     // Inside the tunisian list
-    NewsSource(
-      name: 'Tunisia TV',
-      url:
-          'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/%D8%A7%D8%AE%D8%A8%D8%A7%D8%B1%D9%86%D8%A7',
-      type: SourceType.scrapable,
-      countryCode: 'TN',
-      selectors: {
-        'item': '.card', // Covers both .card-lg-list and .card-landscape
-        'title': 'h3 a',
-        'link': 'h3 a',
-        'date': 'time',
-        'description': 'p',
-      },
-    ),
   ];
   // MOROCCAN SOURCES (MA)
   // ==========================================
@@ -184,6 +170,7 @@ class NewsSources {
           'https://www.aljazeera.net/aljazeerarss/a7c186be-1baa-4bd4-9d80-a84db769f779/73d0e1b4-532f-45ef-b135-bfdff8b8cab9',
       countryCode: 'QA',
     ),
+
     NewsSource(
       name: 'Sky News Arabia',
       url: 'https://www.skynewsarabia.com/rss',

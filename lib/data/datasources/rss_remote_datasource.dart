@@ -268,8 +268,15 @@ class RssRemoteDataSource {
           title = titleElement.text.trim();
         }
 
-        String? link =
-            element.querySelector(selectors['link'] ?? 'a')?.attributes['href'];
+        String? link;
+        if (element.localName == 'a' &&
+            element.attributes.containsKey('href')) {
+          link = element.attributes['href'];
+        } else {
+          link = element
+              .querySelector(selectors['link'] ?? 'a')
+              ?.attributes['href'];
+        }
 
         String? dateText;
         var dateEl = element.querySelector(selectors['date'] ?? 'time, .date');
