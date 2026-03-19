@@ -35,16 +35,9 @@ class MoroccoNewsScreen extends StatefulWidget {
 class _MoroccoNewsScreenState extends State<MoroccoNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
-  final List<NewsSource> _rssSources = [
-    NewsSource(
-        name: 'Aujourd\'hui le Maroc', url: 'https://aujourdhui.ma/feed'),
-    NewsSource(name: 'La Vie Eco', url: 'https://lavieeco.com/feed'),
-    NewsSource(name: 'Hespress', url: 'https://www.hespress.com/feed'),
-    NewsSource(name: 'Akhbarona', url: 'https://akhbarona.com/feed/index.rss'),
-    NewsSource(
-        name: 'Morocco World News',
-        url: 'https://www.moroccoworldnews.com/feed/'),
-  ];
+  // FIX: Replaced hardcoded list with the centralized list from NewsSources
+  // This ensures the screen uses the updated master list of Moroccan sources.
+  final List<NewsSource> _rssSources = NewsSources.moroccan;
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
   final Set<int> _loadingIndices = {};
@@ -152,13 +145,12 @@ class _MoroccoNewsScreenState extends State<MoroccoNewsScreen> {
     _loadingTranslations.add(cacheKey);
 
     try {
-      bool toArabic = targetLang == 'arabic';
-      bool isAlreadyArabic = _containsArabic(text);
-      if ((toArabic && isAlreadyArabic) || (!toArabic && !isAlreadyArabic)) {
-        return text;
-      }
+      // IMPROVEMENT: Use 'auto' detect for Moroccan News.
+      // Moroccan sources are mixed (French & Arabic).
+      // 'auto|ar' detects French/English and translates to Arabic.
+      // 'auto|en' detects French/Arabic and translates to English.
+      final langPair = targetLang == 'arabic' ? 'auto|ar' : 'auto|en';
 
-      final langPair = toArabic ? 'en|ar' : 'ar|en';
       final url =
           'https://api.mymemory.translated.net/get?q=${Uri.encodeComponent(text)}&langpair=$langPair';
 
@@ -204,7 +196,7 @@ class _MoroccoNewsScreenState extends State<MoroccoNewsScreen> {
       allArticles.sort((a, b) => (b.publishedAt ?? DateTime.now())
           .compareTo(a.publishedAt ?? DateTime.now()));
 
-      final recentArticles = allArticles.take(50).toList();
+      final recentArticles = allArticles.take(15).toList();
 
       final StringBuffer contextBuffer = StringBuffer();
       contextBuffer.writeln(

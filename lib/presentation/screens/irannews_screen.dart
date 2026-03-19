@@ -36,7 +36,6 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
 
   // FIX: Replaced hardcoded list with the centralized list from NewsSources
-  // This automatically includes the new UNA-OIC and Iran International sources.
   final List<NewsSource> _rssSources = NewsSources.iranian;
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
@@ -141,17 +140,22 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
 
   Future<String> _loadTranslation(String text, String targetLang) async {
     if (text.isEmpty) return text;
+
     final cacheKey = '$text-$targetLang';
     _loadingTranslations.add(cacheKey);
 
     try {
-      bool toArabic = targetLang == 'arabic';
-      bool isAlreadyArabic = _containsPersian(text);
-      if ((toArabic && isAlreadyArabic) || (!toArabic && !isAlreadyArabic)) {
-        return text;
+      // Determine the direction
+      // If target is Arabic, we assume source is Persian -> "fa|ar"
+      // If target is English, we assume source is Persian -> "fa|en"
+
+      String langPair;
+      if (targetLang == 'arabic') {
+        langPair = 'fa|ar'; // Persian to Arabic
+      } else {
+        langPair = 'fa|en'; // Persian to English
       }
 
-      final langPair = toArabic ? 'en|ar' : 'ar|en';
       final url =
           'https://api.mymemory.translated.net/get?q=${Uri.encodeComponent(text)}&langpair=$langPair';
 
@@ -197,7 +201,8 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
       allArticles.sort((a, b) => (b.publishedAt ?? DateTime.now())
           .compareTo(a.publishedAt ?? DateTime.now()));
 
-      final recentArticles = allArticles.take(15).toList();
+      // UPDATED: Limit changed to 60
+      final recentArticles = allArticles.take(60).toList();
 
       final StringBuffer contextBuffer = StringBuffer();
       contextBuffer.writeln(
@@ -248,6 +253,24 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     setState(() {
       _showDailyRecap = false;
     });
+  }
+
+  // --- FIX: Helper to wrap non-Arabic words in parentheses ---
+  String _formatMixedText(String text, bool isArabic) {
+    if (!isArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !_containsPersian(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
   }
 
   // --- HELPERS ---
@@ -649,6 +672,7 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     );
   }
 
+  // --- FIX: Markdown Parser updated to use mixed text formatting ---
   TextSpan _parseRecapMarkdown(String text,
       {required bool isPersian, required TextStyle baseStyle}) {
     final children = <TextSpan>[];
@@ -658,12 +682,13 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     for (final match in regExp.allMatches(text)) {
       if (match.start > lastIndex) {
         children.add(TextSpan(
-          text: text.substring(lastIndex, match.start),
+          text: _formatMixedText(
+              text.substring(lastIndex, match.start), isPersian),
           style: _getTextStyle(isPersian, baseStyle),
         ));
       }
       children.add(TextSpan(
-        text: match.group(1),
+        text: _formatMixedText(match.group(1) ?? '', isPersian),
         style: _getTextStyle(
             isPersian, baseStyle.copyWith(fontWeight: FontWeight.bold)),
       ));
@@ -672,7 +697,7 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
 
     if (lastIndex < text.length) {
       children.add(TextSpan(
-        text: text.substring(lastIndex),
+        text: _formatMixedText(text.substring(lastIndex), isPersian),
         style: _getTextStyle(isPersian, baseStyle),
       ));
     }
@@ -1084,6 +1109,24 @@ class _IranianMainArticleCardState extends State<_IranianMainArticleCard>
     super.dispose();
   }
 
+  // --- FIX: Helper for card summary ---
+  String _formatMixedText(String text) {
+    if (!widget.isArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !widget.containsPersian(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   Future<void> _handleRecap() async {
     if (_isLoading) return;
 
@@ -1245,7 +1288,9 @@ class _IranianMainArticleCardState extends State<_IranianMainArticleCard>
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2,
                                           color: IranianNewsTheme.cryptoGold)))
-                              : Text(_summary ?? "Unable to generate summary.",
+                              : Text(
+                                  _formatMixedText(_summary ??
+                                      "Unable to generate summary."), // Apply fix
                                   style: widget.getTextStyle(
                                       usePersianStyle,
                                       TextStyle(
@@ -1395,6 +1440,23 @@ class _IranianSideArticleCardState extends State<_IranianSideArticleCard>
     super.dispose();
   }
 
+  // --- FIX: Helper for card summary ---
+  String _formatMixedText(String text) {
+    if (!widget.isArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !widget.containsPersian(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   Future<void> _handleRecap() async {
     if (_isLoading) return;
 
@@ -1508,7 +1570,8 @@ class _IranianSideArticleCardState extends State<_IranianSideArticleCard>
                                     strokeWidth: 1.5,
                                     color: IranianNewsTheme.cryptoGold)))
                         : Text(
-                            _summary ?? "Unable to generate summary.",
+                            _formatMixedText(_summary ??
+                                "Unable to generate summary."), // Apply fix
                             style: widget.getTextStyle(
                                 usePersianStyle,
                                 TextStyle(

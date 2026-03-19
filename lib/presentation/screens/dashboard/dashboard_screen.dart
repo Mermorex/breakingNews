@@ -201,13 +201,36 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
+  // --- NEW: Wrap non-Arabic words in parentheses ---
+  String _formatMixedText(String text) {
+    // Only apply formatting if we are in Arabic mode
+    if (_currentLangMode != 'arabic') return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+
+    for (var word in words) {
+      // Remove punctuation to check the core word
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+
+      if (cleanWord.isNotEmpty && !_containsArabic(cleanWord)) {
+        // Word is not Arabic, wrap it
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   String _getDisplayTitle(RssItemModel article) {
     final original = article.title;
     if (_currentLangMode == 'original') return original;
 
     final cacheKey = '$original-$_currentLangMode';
     if (_translationCache.containsKey(cacheKey)) {
-      return _translationCache[cacheKey]!;
+      // Apply formatting when returning from cache
+      return _formatMixedText(_translationCache[cacheKey]!);
     }
 
     if (!_loadingTranslations.contains(cacheKey)) {
@@ -236,7 +259,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<String> _getTranslatedText(String text, String targetMode) async {
     final cacheKey = '$text-$targetMode';
     if (_translationCache.containsKey(cacheKey))
-      return _translationCache[cacheKey]!;
+      return _formatMixedText(_translationCache[cacheKey]!);
     return await _translateText(text, targetMode);
   }
 
@@ -906,6 +929,25 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
     }
   }
 
+  // Helper to wrap non-Arabic words in parentheses
+  String _formatSummaryText(String text) {
+    // Only format if the summary is supposed to be Arabic
+    if (!widget.isSummaryArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !widget.containsArabic(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool hasArabicContent = widget.containsArabic(widget.article.title);
@@ -1019,7 +1061,9 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
                                       height: 20,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2, color: cryptoGold)))
-                              : Text(_summary ?? "Unable to generate summary.",
+                              : Text(
+                                  _formatSummaryText(_summary ??
+                                      "Unable to generate summary."),
                                   style: widget.getTextStyle(
                                       useArabicStyle,
                                       TextStyle(
@@ -1214,6 +1258,24 @@ class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
     }
   }
 
+  // Helper to wrap non-Arabic words in parentheses
+  String _formatSummaryText(String text) {
+    if (!widget.isSummaryArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !widget.containsArabic(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool hasArabicContent = widget.containsArabic(widget.article.title);
@@ -1288,7 +1350,8 @@ class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
                                 child: CircularProgressIndicator(
                                     strokeWidth: 1.5, color: cryptoGold)))
                         : Text(
-                            _summary ?? "Unable to generate summary.",
+                            _formatSummaryText(
+                                _summary ?? "Unable to generate summary."),
                             style: widget.getTextStyle(
                                 useArabicStyle,
                                 TextStyle(

@@ -251,6 +251,24 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     });
   }
 
+  // --- FIX: Helper to wrap non-Arabic words in parentheses ---
+  String _formatMixedText(String text, bool isArabic) {
+    if (!isArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !_containsArabic(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   // --- HELPERS ---
 
   Future<void> _openArticle(String url) async {
@@ -367,7 +385,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: isDisabled ? null : _generateDailyRecap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(60),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
             child: Row(
@@ -652,6 +670,7 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     );
   }
 
+  // --- FIX: Updated Markdown Parser to format mixed text ---
   TextSpan _parseRecapMarkdown(String text,
       {required bool isArabic, required TextStyle baseStyle}) {
     final children = <TextSpan>[];
@@ -660,13 +679,15 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
 
     for (final match in regExp.allMatches(text)) {
       if (match.start > lastIndex) {
+        final segment = text.substring(lastIndex, match.start);
         children.add(TextSpan(
-          text: text.substring(lastIndex, match.start),
+          text: _formatMixedText(segment, isArabic), // Apply formatting
           style: _getTextStyle(isArabic, baseStyle),
         ));
       }
       children.add(TextSpan(
-        text: match.group(1),
+        text: _formatMixedText(
+            match.group(1) ?? '', isArabic), // Apply formatting
         style: _getTextStyle(
             isArabic, baseStyle.copyWith(fontWeight: FontWeight.bold)),
       ));
@@ -674,8 +695,9 @@ class _InternationalNewsScreenState extends State<InternationalNewsScreen> {
     }
 
     if (lastIndex < text.length) {
+      final segment = text.substring(lastIndex);
       children.add(TextSpan(
-        text: text.substring(lastIndex),
+        text: _formatMixedText(segment, isArabic), // Apply formatting
         style: _getTextStyle(isArabic, baseStyle),
       ));
     }
@@ -1144,6 +1166,24 @@ class _InternationalMainArticleCardState
     super.dispose();
   }
 
+  // --- FIX: Helper for card summary ---
+  String _formatMixedText(String text) {
+    if (!widget.isArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !widget.containsArabic(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   Future<void> _handleRecap() async {
     if (_isLoading) return;
 
@@ -1306,7 +1346,9 @@ class _InternationalMainArticleCardState
                                           strokeWidth: 2,
                                           color: InternationalNewsTheme
                                               .cryptoGold)))
-                              : Text(_summary ?? "Unable to generate summary.",
+                              : Text(
+                                  _formatMixedText(_summary ??
+                                      "Unable to generate summary."), // Apply fix
                                   style: widget.getTextStyle(
                                       useArabicStyle,
                                       TextStyle(
@@ -1459,6 +1501,23 @@ class _InternationalSideArticleCardState
     super.dispose();
   }
 
+  // --- FIX: Helper for card summary ---
+  String _formatMixedText(String text) {
+    if (!widget.isArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !widget.containsArabic(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   Future<void> _handleRecap() async {
     if (_isLoading) return;
 
@@ -1571,7 +1630,8 @@ class _InternationalSideArticleCardState
                                     strokeWidth: 1.5,
                                     color: InternationalNewsTheme.cryptoGold)))
                         : Text(
-                            _summary ?? "Unable to generate summary.",
+                            _formatMixedText(_summary ??
+                                "Unable to generate summary."), // Apply fix
                             style: widget.getTextStyle(
                                 useArabicStyle,
                                 TextStyle(

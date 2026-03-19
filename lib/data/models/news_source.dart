@@ -63,13 +63,13 @@ class NewsSources {
   // ==========================================
   static final List<NewsSource> moroccan = [
     NewsSource(
-      name: 'Le360',
-      url: 'https://fr.le360.ma/rss',
+      name: 'yabiladi',
+      url: 'https://www.yabiladi.com/rss/?url=rubrik/',
       countryCode: 'MA',
     ),
     NewsSource(
-      name: 'Hespress',
-      url: 'https://www.hespress.com/feed',
+      name: 'hihi2',
+      url: 'https://hihi2.com/feed',
       countryCode: 'MA',
     ),
     NewsSource(
@@ -99,6 +99,21 @@ class NewsSources {
       countryCode: 'DZ',
     ),
     NewsSource(
+      name: 'djelfa',
+      url: 'https://www.djelfa.info/vb/external.php?type=RSS2',
+      countryCode: 'DZ',
+    ),
+    NewsSource(
+      name: 'elkhadra',
+      url: 'https://www.elkhadra.com/fr/feed/',
+      countryCode: 'DZ',
+    ),
+    NewsSource(
+      name: 'tsa-algerie',
+      url: 'https://www.tsa-algerie.com/feed/',
+      countryCode: 'DZ',
+    ),
+    NewsSource(
       name: 'Liberté',
       url: 'https://www.liberte-algerie.com/feed/',
       countryCode: 'DZ',
@@ -120,8 +135,13 @@ class NewsSources {
   // ==========================================
   static final List<NewsSource> iranian = [
     NewsSource(
-      name: 'Mehr News',
+      name: 'Mehr News english',
       url: 'https://en.mehrnews.com/rss',
+      countryCode: 'IR',
+    ),
+    NewsSource(
+      name: 'Mehr News persian',
+      url: 'https://www.mehrnews.com/rss',
       countryCode: 'IR',
     ),
     NewsSource(
@@ -132,6 +152,11 @@ class NewsSources {
     NewsSource(
       name: 'Tehran Times',
       url: 'https://www.tehrantimes.com/rss',
+      countryCode: 'IR',
+    ),
+    NewsSource(
+      name: 'Asriran',
+      url: 'https://www.asriran.com/fa/rss/allnews',
       countryCode: 'IR',
     ),
     NewsSource(
@@ -150,6 +175,13 @@ class NewsSources {
       // This URL directly queries Google News for "site:iranintl.com"
       url:
           'https://news.google.com/rss/search?q=site:iranintl.com&hl=en-US&gl=US&ceid=US:en',
+      countryCode: 'IR',
+    ),
+    NewsSource(
+      name: 'tabnak',
+      // STRATEGY: They have no official RSS. We use Google News RSS Mirror.
+      // This URL directly queries Google News for "site:iranintl.com"
+      url: 'https://www.tabnak.ir/fa/rss/allnews',
       countryCode: 'IR',
     ),
   ];
@@ -182,6 +214,11 @@ class NewsSources {
       name: 'BBC',
       url: 'http://feeds.bbci.co.uk/news/rss.xml',
       countryCode: 'GB',
+    ),
+    NewsSource(
+      name: 'france24',
+      url: 'https://www.france24.com/fr/afrique/rss',
+      countryCode: 'FR',
     ),
     NewsSource(
       name: 'Reuters',

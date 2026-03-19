@@ -233,7 +233,8 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
       allArticles.sort((a, b) => (b.publishedAt ?? DateTime.now())
           .compareTo(a.publishedAt ?? DateTime.now()));
 
-      final recentArticles = allArticles.take(80).toList();
+      // UPDATED: Limit changed to 60
+      final recentArticles = allArticles.take(60).toList();
 
       final StringBuffer contextBuffer = StringBuffer();
       contextBuffer.writeln(
@@ -287,6 +288,24 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     setState(() {
       _showDailyRecap = false;
     });
+  }
+
+  // --- FIX: Helper to wrap non-Arabic words in parentheses ---
+  String _formatMixedText(String text, bool isArabic) {
+    if (!isArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !_containsArabic(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
   }
 
   // --- HELPERS ---
@@ -744,7 +763,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     );
   }
 
-  // Markdown Parser for Daily Recap
+  // --- FIX: Markdown Parser updated to use mixed text formatting ---
   TextSpan _parseRecapMarkdown(String text,
       {required bool isArabic, required TextStyle baseStyle}) {
     final children = <TextSpan>[];
@@ -754,12 +773,13 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
     for (final match in regExp.allMatches(text)) {
       if (match.start > lastIndex) {
         children.add(TextSpan(
-          text: text.substring(lastIndex, match.start),
+          text: _formatMixedText(
+              text.substring(lastIndex, match.start), isArabic),
           style: _getTextStyle(isArabic, baseStyle),
         ));
       }
       children.add(TextSpan(
-        text: match.group(1),
+        text: _formatMixedText(match.group(1) ?? '', isArabic),
         style: _getTextStyle(
             isArabic, baseStyle.copyWith(fontWeight: FontWeight.bold)),
       ));
@@ -768,7 +788,7 @@ class _TunisianNewsScreenState extends State<TunisianNewsScreen> {
 
     if (lastIndex < text.length) {
       children.add(TextSpan(
-        text: text.substring(lastIndex),
+        text: _formatMixedText(text.substring(lastIndex), isArabic),
         style: _getTextStyle(isArabic, baseStyle),
       ));
     }
@@ -1135,6 +1155,24 @@ class _TunisianMainArticleCardState extends State<_TunisianMainArticleCard>
     super.dispose();
   }
 
+  // --- FIX: Helper for card summary ---
+  String _formatMixedText(String text) {
+    if (!widget.isArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !widget.containsArabic(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   Future<void> _handleRecap() async {
     if (_isLoading) return;
 
@@ -1293,7 +1331,9 @@ class _TunisianMainArticleCardState extends State<_TunisianMainArticleCard>
                                       height: 20,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2, color: cryptoGold)))
-                              : Text(_summary ?? "Unable to generate summary.",
+                              : Text(
+                                  _formatMixedText(_summary ??
+                                      "Unable to generate summary."), // Apply fix
                                   style: widget.getTextStyle(
                                       useArabicStyle,
                                       TextStyle(
@@ -1439,6 +1479,23 @@ class _TunisianSideArticleCardState extends State<_TunisianSideArticleCard>
     super.dispose();
   }
 
+  // --- FIX: Helper for card summary ---
+  String _formatMixedText(String text) {
+    if (!widget.isArabic) return text;
+
+    final words = text.split(' ');
+    final buffer = StringBuffer();
+    for (var word in words) {
+      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+      if (cleanWord.isNotEmpty && !widget.containsArabic(cleanWord)) {
+        buffer.write('($word) ');
+      } else {
+        buffer.write('$word ');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   Future<void> _handleRecap() async {
     if (_isLoading) return;
 
@@ -1563,7 +1620,8 @@ class _TunisianSideArticleCardState extends State<_TunisianSideArticleCard>
                                 child: CircularProgressIndicator(
                                     strokeWidth: 1.5, color: cryptoGold)))
                         : Text(
-                            _summary ?? "Unable to generate summary.",
+                            _formatMixedText(_summary ??
+                                "Unable to generate summary."), // Apply fix
                             style: widget.getTextStyle(
                                 useArabicStyle,
                                 TextStyle(

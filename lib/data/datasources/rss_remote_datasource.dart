@@ -261,6 +261,7 @@ class RssRemoteDataSource {
 
         String? title;
         var titleElement = element.querySelector(selectors['title'] ?? '');
+
         titleElement ??=
             element.querySelector('h3 a, a h3, h3, h2 a, a h2, h2');
 
