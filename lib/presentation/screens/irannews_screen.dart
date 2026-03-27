@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -11,13 +12,333 @@ import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/presentation/screens/source_detail_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:html' as html;
 
-class IranianNewsTheme {
-  static const Color cryptoDarkBg = Color(0xFF0B0E14);
-  static const Color cryptoCardBg = Color(0xFF151A25);
-  static const Color cryptoOrange = Color(0xFFFF8C00);
-  static const Color cryptoGold = Color(0xFFFFD700);
-  static const Color textGrey = Color(0xFF6E7681);
+// --- UNIFIED COLOR PALETTE ---
+class AppColors {
+  static const Color bgDark = Color(0xFF0B0E14);
+  static const Color cardBg = Color(0xFF151A25);
+  static const Color cardBgElevated = Color(0xFF1E2532);
+  static const Color accentOrange = Color(0xFFFF8C00);
+  static const Color accentGold = Color(0xFFFFD700);
+  static const Color accentEmerald = Color(0xFF10B981);
+  static const Color accentPurple = Color(0xFF8B5CF6);
+  static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0xFFA0AEC0);
+  static const Color textMuted = Color(0xFF64748B);
+  static const Color borderSubtle = Color(0xFF2D3748);
+}
+
+// --- UNIFIED FONT HELPER ---
+class AppFonts {
+  static bool containsArabic(String text) {
+    // Covers Arabic and Persian script
+    return RegExp(
+            r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]')
+        .hasMatch(text);
+  }
+
+  static TextStyle getTextStyle({
+    required double fontSize,
+    required Color color,
+    FontWeight fontWeight = FontWeight.normal,
+    double height = 1.0,
+    double letterSpacing = 0,
+    String? text,
+    bool forceArabic = false,
+  }) {
+    final bool isArabic = forceArabic || (text != null && containsArabic(text));
+
+    if (isArabic) {
+      return GoogleFonts.notoKufiArabic(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+      );
+    }
+
+    return GoogleFonts.inter(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+    );
+  }
+
+  static TextStyle title({
+    required String text,
+    required double fontSize,
+    required Color color,
+    FontWeight fontWeight = FontWeight.w700,
+    double height = 1.3,
+  }) {
+    return getTextStyle(
+      text: text,
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+      height: height,
+    );
+  }
+
+  static TextStyle body({
+    required String text,
+    required double fontSize,
+    required Color color,
+    FontWeight fontWeight = FontWeight.normal,
+    double height = 1.5,
+  }) {
+    return getTextStyle(
+      text: text,
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+      height: height,
+    );
+  }
+
+  static TextStyle caption({
+    required String text,
+    required double fontSize,
+    required Color color,
+    FontWeight fontWeight = FontWeight.w600,
+  }) {
+    return getTextStyle(
+      text: text,
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+      letterSpacing: 0.5,
+    );
+  }
+}
+
+// --- ENHANCED SOURCE EXTRACTOR ---
+class SourceExtractor {
+  static final Map<String, String> _domainMappings = {
+    'mehrnews': 'Mehr News',
+    'tasnimnews': 'Tasnim',
+    'tehrantimes': 'Tehran Times',
+    'isna': 'ISNA',
+    'farsnews': 'Fars News',
+    'irna': 'IRNA',
+    'presstv': 'Press TV',
+    'alalam': 'Al Alam',
+  };
+
+  static String extractSource(String? rssSource, String articleUrl) {
+    if (rssSource != null &&
+        rssSource.isNotEmpty &&
+        rssSource != 'Unknown' &&
+        !_isGenericName(rssSource)) {
+      return _cleanSourceName(rssSource);
+    }
+    return _extractFromUrl(articleUrl);
+  }
+
+  static bool _isGenericName(String name) {
+    final genericNames = ['world news', 'news', 'feed', 'articles', 'unknown'];
+    return genericNames.any((generic) => name.toLowerCase().contains(generic));
+  }
+
+  static String _cleanSourceName(String name) {
+    return name
+        .replaceAll(RegExp(r'\s*-\s*.*$'), '')
+        .replaceAll(RegExp(r'\s*\|.*$'), '')
+        .trim();
+  }
+
+  static String _extractFromUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      String host = uri.host.toLowerCase().replaceAll('www.', '');
+      if (_domainMappings.containsKey(host)) return _domainMappings[host]!;
+
+      final parts = host.split('.');
+      if (parts.isNotEmpty) {
+        final name = parts[0];
+        return name[0].toUpperCase() + name.substring(1);
+      }
+      return 'Unknown';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+}
+
+// --- FULL AI RECAP WIDGET ---
+class FullAiRecap extends StatelessWidget {
+  final String summary;
+  final bool isArabic;
+  final bool isLoading;
+  final VoidCallback onClose;
+
+  const FullAiRecap({
+    super.key,
+    required this.summary,
+    required this.isArabic,
+    required this.isLoading,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return Container(
+        height: 100,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.accentPurple.withOpacity(0.2),
+              AppColors.accentEmerald.withOpacity(0.1),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.accentPurple.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(AppColors.accentPurple),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                isArabic ? 'جاري التلخيص...' : 'Generating summary...',
+                style: AppFonts.body(
+                  text: isArabic ? 'جاري التلخيص...' : 'Generating summary...',
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.accentPurple.withOpacity(0.15),
+            AppColors.cardBgElevated.withOpacity(0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.accentPurple.withOpacity(0.4),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.accentPurple.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.2),
+                border: Border(
+                  bottom: BorderSide(
+                    color: AppColors.accentPurple.withOpacity(0.2),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentPurple.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 14,
+                          color: AppColors.accentPurple,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isArabic ? 'ملخص ذكي' : 'AI Recap',
+                          style: AppFonts.caption(
+                            text: isArabic ? 'ملخص ذكي' : 'AI Recap',
+                            fontSize: 11,
+                            color: AppColors.accentPurple,
+                          ).copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: onClose,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.close,
+                        size: 16,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Text(
+                  summary,
+                  style: AppFonts.body(
+                    text: summary,
+                    fontSize: isArabic ? 14 : 13,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ).copyWith(height: 1.7, letterSpacing: 0.2),
+                  textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class IranianNewsScreen extends StatefulWidget {
@@ -32,21 +353,24 @@ class IranianNewsScreen extends StatefulWidget {
   State<IranianNewsScreen> createState() => _IranianNewsScreenState();
 }
 
-class _IranianNewsScreenState extends State<IranianNewsScreen> {
+class _IranianNewsScreenState extends State<IranianNewsScreen>
+    with TickerProviderStateMixin {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
-
-  // FIX: Replaced hardcoded list with the centralized list from NewsSources
-  final List<NewsSource> _rssSources = NewsSources.iranian;
+  List<NewsSource> get _rssSources => NewsSources.iranian;
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
   final Set<int> _loadingIndices = {};
   bool _isGlobalLoading = true;
   final Map<String, String> _sourceErrors = {};
 
-  // --- LANGUAGE STATE ---
+  // --- LANGUAGE & TICKER STATE ---
   String _currentLangMode = 'original';
   final Map<String, String> _translationCache = {};
-  final Set<String> _loadingTranslations = {};
+
+  AnimationController? _tickerController;
+  double _textWidth = 0.0;
+  String _currentTickerText = "";
+  List<RssItemModel> _recentNews = [];
 
   // --- DAILY RECAP STATE ---
   bool _isDailyRecapLoading = false;
@@ -77,9 +401,8 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     await Future.wait(fetchTasks);
 
     if (mounted) {
-      setState(() {
-        _isGlobalLoading = false;
-      });
+      setState(() => _isGlobalLoading = false);
+      _updateRecentNews();
     }
   }
 
@@ -109,7 +432,21 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     }
   }
 
-  // --- LANGUAGE LOGIC ---
+  // --- TICKER & LANGUAGE LOGIC ---
+
+  void _updateRecentNews() {
+    final allItems = _dashboardData.values.expand((e) => e).toList();
+    allItems.sort((a, b) => (b.publishedAt ?? DateTime(1970))
+        .compareTo(a.publishedAt ?? DateTime(1970)));
+    _recentNews = allItems.take(10).toList();
+
+    if (_currentLangMode == 'original') {
+      _currentTickerText = _recentNews.map((e) => e.title).join('   •   ');
+      _initTicker();
+    } else {
+      _translateTickerText();
+    }
+  }
 
   void _toggleLanguage() {
     setState(() {
@@ -121,64 +458,95 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
         _currentLangMode = 'original';
       }
     });
+
+    if (_currentLangMode == 'original') {
+      _currentTickerText = _recentNews.map((e) => e.title).join('   •   ');
+      _initTicker();
+    } else {
+      _translateTickerText();
+    }
+  }
+
+  Future<void> _translateTickerText() async {
+    if (_recentNews.isEmpty) return;
+    final titles = _recentNews.map((e) => e.title).toList();
+    List<String> translatedTitles = [];
+    for (var title in titles) {
+      translatedTitles.add(await _getTranslatedText(title, _currentLangMode));
+    }
+    if ((_currentLangMode == 'arabic' || _currentLangMode == 'english') &&
+        mounted) {
+      setState(() {
+        _currentTickerText = translatedTitles.join('   •   ');
+      });
+      _initTicker();
+    }
+  }
+
+  void _initTicker() {
+    if (_currentTickerText.isEmpty) return;
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: _currentTickerText,
+        style: AppFonts.body(
+          text: _currentTickerText,
+          fontSize: 15,
+          color: Colors.white,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      maxLines: 1,
+      textDirection: ui.TextDirection.ltr,
+    )..layout();
+    _textWidth = textPainter.width;
+    final duration = Duration(milliseconds: ((_textWidth / 80) * 1000).round());
+    _tickerController?.dispose();
+    _tickerController = AnimationController(
+      vsync: this,
+      duration: duration,
+    )..repeat();
+    if (mounted) setState(() {});
   }
 
   Future<String> _getDisplayTitle(RssItemModel article) async {
     final original = article.title;
     if (_currentLangMode == 'original') return original;
-
-    final targetLang = _currentLangMode;
-    final cacheKey = '$original-$targetLang';
-
-    if (_translationCache.containsKey(cacheKey)) {
-      return _translationCache[cacheKey]!;
-    }
-    if (_loadingTranslations.contains(cacheKey)) return original;
-
-    return _loadTranslation(original, targetLang);
+    return _getTranslatedText(original, _currentLangMode);
   }
 
-  Future<String> _loadTranslation(String text, String targetLang) async {
-    if (text.isEmpty) return text;
+  Future<String> _getTranslatedText(String text, String targetMode) async {
+    final cacheKey = '$text-$targetMode';
+    if (_translationCache.containsKey(cacheKey))
+      return _translationCache[cacheKey]!;
+    return _translateText(text, targetMode);
+  }
 
-    final cacheKey = '$text-$targetLang';
-    _loadingTranslations.add(cacheKey);
+  Future<String> _translateText(String text, String targetMode) async {
+    if (text.isEmpty) return text;
+    final cacheKey = '$text-$targetMode';
+    if (_translationCache.containsKey(cacheKey))
+      return _translationCache[cacheKey]!;
+
+    // Specific logic for Iranian (Persian) news:
+    // Source is Persian. Target can be Arabic or English.
+    final sourceLang = 'fa';
+    final targetLang = targetMode == 'arabic' ? 'ar' : 'en';
 
     try {
-      // Determine the direction
-      // If target is Arabic, we assume source is Persian -> "fa|ar"
-      // If target is English, we assume source is Persian -> "fa|en"
-
-      String langPair;
-      if (targetLang == 'arabic') {
-        langPair = 'fa|ar'; // Persian to Arabic
-      } else {
-        langPair = 'fa|en'; // Persian to English
-      }
-
-      final url =
-          'https://api.mymemory.translated.net/get?q=${Uri.encodeComponent(text)}&langpair=$langPair';
-
-      final response =
-          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-
+      final url = Uri.parse(
+        'https://translate.googleapis.com/translate_a/single?client=gtx&sl=$sourceLang&tl=$targetLang&dt=t&q=${Uri.encodeComponent(text)}',
+      );
+      final response = await http.get(url).timeout(const Duration(seconds: 2));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['responseStatus'] == 200) {
-          final translated = data['responseData']['translatedText'] ?? text;
-          if (mounted) {
-            setState(() {
-              _translationCache[cacheKey] = translated;
-            });
-          }
-          return translated;
+        if (data != null && data[0] != null && data[0] is List) {
+          final translatedParts =
+              (data[0] as List).map((e) => (e as List).first.toString()).join();
+          _translationCache[cacheKey] = translatedParts;
+          return translatedParts;
         }
       }
-    } catch (e) {
-      debugPrint('Translation failed: $e');
-    } finally {
-      _loadingTranslations.remove(cacheKey);
-    }
+    } catch (e) {}
     return text;
   }
 
@@ -193,44 +561,22 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     });
 
     try {
-      final allArticles = <RssItemModel>[];
-      for (final items in _dashboardData.values) {
-        allArticles.addAll(items);
-      }
-
+      final allArticles = _dashboardData.values.expand((e) => e).toList();
       allArticles.sort((a, b) => (b.publishedAt ?? DateTime.now())
           .compareTo(a.publishedAt ?? DateTime.now()));
 
-      // UPDATED: Limit changed to 60
-      final recentArticles = allArticles.take(60).toList();
-
-      final StringBuffer contextBuffer = StringBuffer();
-      contextBuffer.writeln(
-          'Iran News Summary - ${intl.DateFormat('EEEE, MMMM d, yyyy').format(DateTime.now())}\n');
-
-      for (int i = 0; i < recentArticles.length; i++) {
-        final article = recentArticles[i];
-        contextBuffer.writeln('${i + 1}. ${article.title}');
-        if (article.description != null && article.description!.isNotEmpty) {
-          final cleanDesc = article.description!
-              .replaceAll(RegExp(r'<[^>]*>'), ' ')
-              .replaceAll(RegExp(r'\s+'), ' ')
-              .trim();
-          if (cleanDesc.length > 50) {
-            contextBuffer.writeln('   $cleanDesc');
-          }
-        }
-        contextBuffer.writeln('');
+      final contextBuffer = StringBuffer();
+      for (var article in allArticles.take(50)) {
+        contextBuffer.writeln(article.title);
       }
 
       final bool generateInEnglish = (_currentLangMode == 'english');
       final bool isArabic = !generateInEnglish;
-      final String topicName = isArabic ? "إيران" : "Iran";
 
       final recap = await MistralService().generateDailyRecap(
         contextBuffer.toString(),
         isArabic: isArabic,
-        topic: topicName,
+        topic: isArabic ? "إيران" : "Iran",
       );
 
       if (mounted) {
@@ -249,57 +595,24 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     }
   }
 
-  void _closeDailyRecap() {
-    setState(() {
-      _showDailyRecap = false;
-    });
+  @override
+  void dispose() {
+    _tickerController?.dispose();
+    super.dispose();
   }
 
-  // --- FIX: Helper to wrap non-Arabic words in parentheses ---
-  String _formatMixedText(String text, bool isArabic) {
-    if (!isArabic) return text;
-
-    final words = text.split(' ');
-    final buffer = StringBuffer();
-
-    for (var word in words) {
-      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
-      if (cleanWord.isNotEmpty && !_containsPersian(cleanWord)) {
-        buffer.write('($word) ');
-      } else {
-        buffer.write('$word ');
+  Future<void> _launchUrl(String url) async {
+    try {
+      html.window.open(url, '_blank');
+    } catch (e) {
+      final Uri uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     }
-    return buffer.toString().trim();
-  }
-
-  // --- HELPERS ---
-
-  Future<void> _openArticle(String url) async {
-    if (url.isEmpty) return;
-    final uri = Uri.parse(
-        url.trim().startsWith('http') ? url.trim() : 'https://${url.trim()}');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  TextStyle _getTextStyle(bool isPersian, TextStyle style) {
-    if (isPersian) {
-      return GoogleFonts.notoKufiArabic(textStyle: style);
-    } else {
-      return GoogleFonts.montserrat(textStyle: style);
-    }
-  }
-
-  bool _containsPersian(String text) {
-    if (text.isEmpty) return false;
-    return RegExp(r'[\u0600-\u06FF]').hasMatch(text);
   }
 
   bool get _isArabicContent => _currentLangMode == 'arabic';
-
-  // --- BUILD ---
 
   @override
   Widget build(BuildContext context) {
@@ -308,9 +621,9 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     if (widget.isEmbedded) return content;
 
     return Scaffold(
-      backgroundColor: IranianNewsTheme.cryptoDarkBg,
+      backgroundColor: AppColors.bgDark,
       appBar: AppBar(
-        backgroundColor: IranianNewsTheme.cryptoDarkBg,
+        backgroundColor: AppColors.bgDark,
         elevation: 0,
         title: Text(
           'Iran Feed',
@@ -323,13 +636,14 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
         centerTitle: true,
         actions: [
           if (_sourceErrors.isNotEmpty)
-            const Tooltip(
-              message: 'Some sources failed',
-              child: Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            Tooltip(
+              message: '${_sourceErrors.length} sources failed',
+              child:
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orange),
             ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded,
-                color: IranianNewsTheme.cryptoOrange),
+                color: AppColors.accentOrange),
             onPressed: _isGlobalLoading ? null : _loadDashboardData,
           ),
         ],
@@ -341,12 +655,11 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
   Widget _buildContent() {
     return CustomScrollView(
       slivers: [
-        if (_showDailyRecap) _buildDailyRecapSection(),
-        SliverToBoxAdapter(child: _buildStatusHeader()),
+        SliverToBoxAdapter(child: _buildModernHeader()),
+        if (_showDailyRecap)
+          SliverToBoxAdapter(child: _buildDailyRecapSection()),
         if (!_showDailyRecap)
-          SliverToBoxAdapter(
-            child: _buildDailyRecapTriggerContainer(),
-          ),
+          SliverToBoxAdapter(child: _buildDailyRecapTrigger()),
         ..._rssSources.asMap().entries.map((entry) {
           final index = entry.key;
           final source = entry.value;
@@ -354,7 +667,7 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
           final isLoading = _loadingIndices.contains(index);
           final hasError = _sourceErrors.containsKey(source.name);
 
-          return _buildSection(
+          return _buildModernSection(
             source: source,
             items: items,
             isLoading: isLoading,
@@ -368,418 +681,148 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
 
   // --- UI COMPONENTS ---
 
-  Widget _buildDailyRecapTriggerContainer() {
-    final bool isDisabled = _isGlobalLoading || _dashboardData.isEmpty;
-
+  Widget _buildModernHeader() {
+    final isMobile = ResponsiveHelper.isMobile(context);
     return Container(
-      margin: const EdgeInsets.fromLTRB(32, 0, 32, 24),
+      margin:
+          EdgeInsets.fromLTRB(isMobile ? 16 : 32, 24, isMobile ? 16 : 32, 0),
       decoration: BoxDecoration(
-        color: IranianNewsTheme.cryptoCardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.teal.withOpacity(0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.teal.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isDisabled ? null : _generateDailyRecap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isDisabled
-                          ? [Colors.grey, Colors.grey.shade700]
-                          : [Colors.teal, Colors.cyan],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome_motion,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _isArabicContent
-                            ? 'ماذا حدث اليوم؟'
-                            : 'What Happened Today?',
-                        style: GoogleFonts.montserrat(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isDisabled ? Colors.white38 : Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isDisabled
-                            ? (_isArabicContent
-                                ? 'جاري تحميل الأخبار...'
-                                : 'Loading news feed...')
-                            : (_isArabicContent
-                                ? 'انقر هنا للحصول على ملخص ذكي للأخبار'
-                                : 'Tap here for an AI summary of current events'),
-                        style: GoogleFonts.montserrat(
-                          fontSize: 12,
-                          color: IranianNewsTheme.textGrey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_isDailyRecapLoading)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.teal,
-                      strokeWidth: 2,
-                    ),
-                  )
-                else
-                  Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: isDisabled ? Colors.white24 : Colors.teal,
-                    size: 18,
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDailyRecapSection() {
-    return SliverToBoxAdapter(
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.teal.withOpacity(0.2),
-              Colors.cyan.withOpacity(0.1),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: Colors.teal.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.teal, Colors.cyan],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome_motion,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _isArabicContent
-                              ? 'ملخص أخبار إيران'
-                              : 'Iran News Recap',
-                          style: GoogleFonts.orbitron(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          intl.DateFormat('EEEE, MMMM d, yyyy')
-                              .format(DateTime.now()),
-                          style: GoogleFonts.montserrat(
-                            fontSize: 12,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _closeDailyRecap,
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: _isDailyRecapLoading
-                  ? _buildDailyRecapLoading()
-                  : _buildDailyRecapContent(),
-            ),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.accentOrange.withOpacity(0.9),
+            AppColors.accentGold.withOpacity(0.7),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDailyRecapLoading() {
-    return Container(
-      height: 200,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(
-              width: 48,
-              height: 48,
-              child: CircularProgressIndicator(
-                color: Colors.teal,
-                strokeWidth: 3,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _isArabicContent ? 'جاري تحليل الأخبار...' : 'Analyzing news...',
-              style: GoogleFonts.montserrat(
-                color: Colors.white70,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDailyRecapContent() {
-    final isPersian = _containsPersian(_dailyRecap ?? '');
-
-    return Column(
-      crossAxisAlignment:
-          isPersian ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.teal.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.teal.withOpacity(0.3),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.psychology,
-                size: 16,
-                color: Colors.cyan[200],
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'AI Generated',
-                style: GoogleFonts.montserrat(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.cyan[200],
-                ),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.05),
-            ),
-          ),
-          child: Text.rich(
-            _parseRecapMarkdown(
-              _dailyRecap ?? '',
-              isPersian: isPersian,
-              baseStyle: TextStyle(
-                fontSize: 15,
-                color: Colors.white.withOpacity(0.9),
-                height: 1.7,
-                letterSpacing: 0.3,
-              ),
-            ),
-            textAlign: isPersian ? TextAlign.right : TextAlign.left,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- FIX: Markdown Parser updated to use mixed text formatting ---
-  TextSpan _parseRecapMarkdown(String text,
-      {required bool isPersian, required TextStyle baseStyle}) {
-    final children = <TextSpan>[];
-    final regExp = RegExp(r'\*\*(.*?)\*\*');
-    int lastIndex = 0;
-
-    for (final match in regExp.allMatches(text)) {
-      if (match.start > lastIndex) {
-        children.add(TextSpan(
-          text: _formatMixedText(
-              text.substring(lastIndex, match.start), isPersian),
-          style: _getTextStyle(isPersian, baseStyle),
-        ));
-      }
-      children.add(TextSpan(
-        text: _formatMixedText(match.group(1) ?? '', isPersian),
-        style: _getTextStyle(
-            isPersian, baseStyle.copyWith(fontWeight: FontWeight.bold)),
-      ));
-      lastIndex = match.end;
-    }
-
-    if (lastIndex < text.length) {
-      children.add(TextSpan(
-        text: _formatMixedText(text.substring(lastIndex), isPersian),
-        style: _getTextStyle(isPersian, baseStyle),
-      ));
-    }
-
-    return TextSpan(children: children);
-  }
-
-  Widget _buildStatusHeader() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [IranianNewsTheme.cryptoOrange, IranianNewsTheme.cryptoGold],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: IranianNewsTheme.cryptoOrange.withOpacity(0.3),
-            blurRadius: 30,
-            offset: const Offset(0, 10),
+            color: AppColors.accentOrange.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'IRAN INSIGHT',
-                  style: GoogleFonts.robotoMono(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white.withOpacity(0.9),
-                    letterSpacing: 2,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  isMobile ? 20 : 28, 24, isMobile ? 20 : 28, 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'LIVE FEED',
+                            style: AppFonts.caption(
+                              text: 'LIVE FEED',
+                              fontSize: 10,
+                              color: Colors.white,
+                            ).copyWith(
+                                letterSpacing: 2, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${_rssSources.length} Active Sources',
+                          style: GoogleFonts.inter(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_rssSources.length} Active Sources',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
+                  _buildModernLangToggle(),
+                ],
+              ),
             ),
+            Container(
+              height: 54,
+              width: double.infinity,
+              color: Colors.black.withOpacity(0.2),
+              child: _tickerController == null
+                  ? Center(
+                      child: Text(
+                        "Loading feed...",
+                        style: AppFonts.body(
+                            text: "Loading feed...",
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.6)),
+                      ),
+                    )
+                  : _buildModernTicker(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernTicker() {
+    return ClipRect(
+      child: OverflowBox(
+        maxWidth: double.infinity,
+        alignment: Alignment.centerLeft,
+        child: AnimatedBuilder(
+          animation: _tickerController!,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(-_textWidth * _tickerController!.value, 0),
+              child: child,
+            );
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildTickerItem(_currentTickerText),
+              const SizedBox(width: 80),
+              _buildTickerItem(_currentTickerText),
+            ],
           ),
-          _buildLangToggle(),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.public, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  '${_dashboardData.length}',
-                  style: GoogleFonts.montserrat(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTickerItem(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 6, color: AppColors.accentGold),
+          const SizedBox(width: 12),
+          Text(
+            text,
+            style: AppFonts.body(
+                text: text,
+                fontSize: 15,
+                color: Colors.white.withOpacity(0.95),
+                fontWeight: FontWeight.w500),
+            maxLines: 1,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLangToggle() {
+  Widget _buildModernLangToggle() {
     String displayText;
     IconData iconData;
 
@@ -803,7 +846,7 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
         onTap: _toggleLanguage,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
@@ -813,14 +856,12 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(iconData, color: Colors.white, size: 16),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Text(
                 displayText,
-                style: GoogleFonts.montserrat(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
+                style: AppFonts.caption(
+                        text: displayText, fontSize: 12, color: Colors.white)
+                    .copyWith(letterSpacing: 0.5),
               ),
             ],
           ),
@@ -829,9 +870,105 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     );
   }
 
-  // --- SECTION & CARDS ---
+  Widget _buildDailyRecapTrigger() {
+    final bool isDisabled = _isGlobalLoading || _dashboardData.isEmpty;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(32, 20, 32, 8),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.accentPurple.withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(
+              color: AppColors.accentPurple.withOpacity(0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isDisabled ? null : _generateDailyRecap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      AppColors.accentPurple,
+                      AppColors.accentEmerald
+                    ]),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.auto_awesome_motion,
+                      color: Colors.white, size: 24),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isArabicContent
+                            ? 'ماذا حدث اليوم؟'
+                            : 'What Happened Today?',
+                        style: AppFonts.title(
+                            text: _isArabicContent
+                                ? 'ماذا حدث اليوم؟'
+                                : 'What Happened Today?',
+                            fontSize: 16,
+                            color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isDisabled
+                            ? (_isArabicContent
+                                ? 'جاري تحميل الأخبار...'
+                                : 'Loading news feed...')
+                            : (_isArabicContent
+                                ? 'ملخص ذكي للأخبار الإيرانية'
+                                : 'AI summary of Iranian events'),
+                        style: AppFonts.body(
+                            text: '', fontSize: 12, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_isDailyRecapLoading)
+                  const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          color: AppColors.accentPurple, strokeWidth: 2))
+                else
+                  Icon(Icons.arrow_forward_ios_rounded,
+                      color:
+                          isDisabled ? Colors.white24 : AppColors.accentPurple,
+                      size: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-  Widget _buildSection({
+  Widget _buildDailyRecapSection() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
+      child: FullAiRecap(
+        summary: _dailyRecap ?? "Unable to generate summary.",
+        isArabic: _isArabicContent,
+        isLoading: _isDailyRecapLoading,
+        onClose: () => setState(() => _showDailyRecap = false),
+      ),
+    );
+  }
+
+  Widget _buildModernSection({
     required NewsSource source,
     required List<RssItemModel> items,
     required bool isLoading,
@@ -841,22 +978,25 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
 
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+        padding:
+            EdgeInsets.fromLTRB(isMobile ? 16 : 32, 28, isMobile ? 16 : 32, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [
-                      IranianNewsTheme.cryptoOrange,
-                      IranianNewsTheme.cryptoGold
-                    ]),
-                    borderRadius: BorderRadius.circular(16),
+                    color: AppColors.accentOrange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: AppColors.accentOrange.withOpacity(0.3)),
                   ),
-                  child: const Text('🇮🇷', style: TextStyle(fontSize: 22)),
+                  child: const Center(
+                    child: Text('🇮🇷', style: TextStyle(fontSize: 22)),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -865,24 +1005,20 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
                     children: [
                       Text(
                         source.name,
-                        style: GoogleFonts.montserrat().copyWith(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                        style: AppFonts.title(
+                                text: source.name,
+                                fontSize: 20,
+                                color: Colors.white)
+                            .copyWith(letterSpacing: -0.5),
                       ),
                       const SizedBox(height: 2),
-                      Container(
-                        height: 2,
-                        width: 60,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [
-                            IranianNewsTheme.cryptoOrange,
-                            IranianNewsTheme.cryptoGold
-                          ]),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      )
+                      Text(
+                        'Recent updates',
+                        style: AppFonts.body(
+                            text: 'Recent updates',
+                            fontSize: 13,
+                            color: AppColors.textMuted),
+                      ),
                     ],
                   ),
                 ),
@@ -892,38 +1028,34 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
             ),
             const SizedBox(height: 20),
             if (isLoading)
-              _buildLoadingPlaceholder()
+              _buildLoadingState()
             else if (items.isNotEmpty)
               LayoutBuilder(
                 builder: (context, constraints) {
                   if (constraints.maxWidth < 700) {
                     return Column(
                       children: [
-                        _buildMainArticleCard(items.first),
-                        ...items.skip(1).take(2).map((item) => Padding(
-                              padding: const EdgeInsets.only(top: 16),
-                              child: _buildSideArticleCard(item),
-                            )),
+                        _buildFeaturedCard(items.first),
+                        const SizedBox(height: 12),
+                        ...items
+                            .skip(1)
+                            .take(2)
+                            .map((item) => _buildCompactCard(item)),
                       ],
                     );
                   }
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        flex: 5,
-                        child: _buildMainArticleCard(items.first),
-                      ),
-                      const SizedBox(width: 20),
+                      Expanded(flex: 5, child: _buildFeaturedCard(items.first)),
+                      const SizedBox(width: 16),
                       Expanded(
                         flex: 4,
                         child: Column(
                           children: [
-                            if (items.length > 1)
-                              _buildSideArticleCard(items[1]),
-                            if (items.length > 2) const SizedBox(height: 16),
-                            if (items.length > 2)
-                              _buildSideArticleCard(items[2]),
+                            if (items.length > 1) _buildCompactCard(items[1]),
+                            if (items.length > 2) const SizedBox(height: 12),
+                            if (items.length > 2) _buildCompactCard(items[2]),
                           ],
                         ),
                       ),
@@ -932,7 +1064,7 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
                 },
               )
             else
-              _buildEmptyErrorState(hasError),
+              _buildEmptyState(hasError),
           ],
         ),
       ),
@@ -959,25 +1091,21 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: IranianNewsTheme.cryptoOrange.withOpacity(0.1),
+            color: AppColors.accentOrange.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color: IranianNewsTheme.cryptoOrange.withOpacity(0.3)),
+            border: Border.all(color: AppColors.accentOrange.withOpacity(0.3)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'View All',
-                style: GoogleFonts.montserrat(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: IranianNewsTheme.cryptoOrange,
-                ),
-              ),
+              Text('View All',
+                  style: AppFonts.caption(
+                      text: 'View All',
+                      fontSize: 12,
+                      color: AppColors.accentOrange)),
               const SizedBox(width: 6),
               Icon(Icons.arrow_forward_rounded,
-                  size: 14, color: IranianNewsTheme.cryptoOrange),
+                  size: 14, color: AppColors.accentOrange),
             ],
           ),
         ),
@@ -985,109 +1113,114 @@ class _IranianNewsScreenState extends State<IranianNewsScreen> {
     );
   }
 
-  Widget _buildLoadingPlaceholder() {
+  Widget _buildLoadingState() {
     return Container(
-      height: 340,
+      height: 320,
       decoration: BoxDecoration(
-        color: IranianNewsTheme.cryptoCardBg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
+          color: AppColors.cardBg, borderRadius: BorderRadius.circular(20)),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 50,
-              height: 50,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: IranianNewsTheme.cryptoOrange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                    IranianNewsTheme.cryptoOrange),
-              ),
-            ),
+            SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(
+                    color: AppColors.accentOrange, strokeWidth: 3)),
             const SizedBox(height: 16),
-            Text('Fetching Feed...',
-                style: GoogleFonts.montserrat(
-                    color: Colors.white54, fontSize: 12)),
+            Text('Loading articles...',
+                style: AppFonts.body(
+                    text: 'Loading articles...',
+                    fontSize: 14,
+                    color: AppColors.textMuted)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEmptyErrorState(bool hasError) {
+  Widget _buildEmptyState(bool hasError) {
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: IranianNewsTheme.cryptoCardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-            color: (hasError ? Colors.red : Colors.white).withOpacity(0.1)),
-      ),
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderSubtle)),
       child: Center(
-        child: Text(hasError ? 'Source failed to load' : 'No articles found',
-            style: GoogleFonts.montserrat(color: Colors.white38)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.article_outlined, size: 48, color: AppColors.textMuted),
+            const SizedBox(height: 12),
+            Text('No articles found',
+                style: AppFonts.title(
+                    text: 'No articles found',
+                    fontSize: 15,
+                    color: AppColors.textSecondary)),
+          ],
+        ),
       ),
     );
   }
 
-  // --- UPDATED: Card Builders using Private StatefulWidgets ---
-
-  Widget _buildMainArticleCard(RssItemModel article) {
-    return _IranianMainArticleCard(
+  Widget _buildFeaturedCard(RssItemModel article) {
+    return _ExpandableFeaturedCard(
       article: article,
+      accentColor: AppColors.accentOrange,
       isArabic: _isArabicContent,
+      isSummaryArabic: _currentLangMode != 'english',
       getDisplayTitle: _getDisplayTitle,
-      containsPersian: _containsPersian,
-      getTextStyle: _getTextStyle,
+      getDisplaySource: (item) =>
+          SourceExtractor.extractSource(item.source, item.link),
+      onLaunchUrl: _launchUrl,
     );
   }
 
-  Widget _buildSideArticleCard(RssItemModel article) {
-    return _IranianSideArticleCard(
+  Widget _buildCompactCard(RssItemModel article) {
+    return _ExpandableCompactCard(
       article: article,
+      accentColor: AppColors.accentGold,
       isArabic: _isArabicContent,
+      isSummaryArabic: _currentLangMode != 'english',
       getDisplayTitle: _getDisplayTitle,
-      containsPersian: _containsPersian,
-      getTextStyle: _getTextStyle,
+      getDisplaySource: (item) =>
+          SourceExtractor.extractSource(item.source, item.link),
+      onLaunchUrl: _launchUrl,
     );
   }
 }
 
-// --- PRIVATE STATEFUL WIDGETS FOR CARDS ---
+// --- REUSABLE CARD WIDGETS ---
 
-class _IranianMainArticleCard extends StatefulWidget {
+class _ExpandableFeaturedCard extends StatefulWidget {
   final RssItemModel article;
+  final Color accentColor;
   final bool isArabic;
+  final bool isSummaryArabic;
   final Future<String> Function(RssItemModel) getDisplayTitle;
-  final bool Function(String) containsPersian;
-  final TextStyle Function(bool, TextStyle) getTextStyle;
+  final String Function(RssItemModel) getDisplaySource;
+  final Future<void> Function(String) onLaunchUrl;
 
-  const _IranianMainArticleCard({
+  const _ExpandableFeaturedCard({
     required this.article,
+    required this.accentColor,
     required this.isArabic,
+    required this.isSummaryArabic,
     required this.getDisplayTitle,
-    required this.containsPersian,
-    required this.getTextStyle,
+    required this.getDisplaySource,
+    required this.onLaunchUrl,
   });
 
   @override
-  State<_IranianMainArticleCard> createState() =>
-      _IranianMainArticleCardState();
+  State<_ExpandableFeaturedCard> createState() =>
+      _ExpandableFeaturedCardState();
 }
 
-class _IranianMainArticleCardState extends State<_IranianMainArticleCard>
+class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   bool _isLoading = false;
   String? _summary;
-
   late AnimationController _controller;
   late Animation<double> _iconTurn;
 
@@ -1095,12 +1228,9 @@ class _IranianMainArticleCardState extends State<_IranianMainArticleCard>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
+        duration: const Duration(milliseconds: 250), vsync: this);
+    _iconTurn = Tween<double>(begin: 0.0, end: 0.5)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -1109,33 +1239,13 @@ class _IranianMainArticleCardState extends State<_IranianMainArticleCard>
     super.dispose();
   }
 
-  // --- FIX: Helper for card summary ---
-  String _formatMixedText(String text) {
-    if (!widget.isArabic) return text;
-
-    final words = text.split(' ');
-    final buffer = StringBuffer();
-
-    for (var word in words) {
-      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
-      if (cleanWord.isNotEmpty && !widget.containsPersian(cleanWord)) {
-        buffer.write('($word) ');
-      } else {
-        buffer.write('$word ');
-      }
-    }
-    return buffer.toString().trim();
-  }
-
   Future<void> _handleRecap() async {
     if (_isLoading) return;
-
     if (_isExpanded) {
       setState(() => _isExpanded = false);
       _controller.reverse();
       return;
     }
-
     setState(() {
       _isExpanded = true;
       _isLoading = true;
@@ -1147,7 +1257,7 @@ class _IranianMainArticleCardState extends State<_IranianMainArticleCard>
         final result = await MistralService().summarizeArticle(
           widget.article.title,
           widget.article.description ?? '',
-          isArabic: widget.isArabic,
+          isArabic: widget.isSummaryArabic,
         );
         if (mounted)
           setState(() {
@@ -1157,220 +1267,13 @@ class _IranianMainArticleCardState extends State<_IranianMainArticleCard>
       } catch (e) {
         if (mounted)
           setState(() {
-            _summary = "Error generating summary.";
+            _summary = "Unable to generate summary.";
             _isLoading = false;
           });
       }
     } else {
       setState(() => _isLoading = false);
     }
-  }
-
-  Future<void> _launchUrl(String url) async {
-    if (url.isEmpty) return;
-    final uri = Uri.parse(url.trim());
-    if (await canLaunchUrl(uri))
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final bool usePersianStyle =
-        widget.isArabic || widget.containsPersian(widget.article.title);
-
-    return GestureDetector(
-      onTap: () => _launchUrl(widget.article.link),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        height: _isExpanded ? (isMobile ? 420 : 460) : (isMobile ? 280 : 340),
-        decoration: BoxDecoration(
-            color: IranianNewsTheme.cryptoCardBg,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-                color: IranianNewsTheme.cryptoOrange.withOpacity(0.2))),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
-            children: [
-              Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                      width: 5,
-                      decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [
-                        IranianNewsTheme.cryptoOrange,
-                        IranianNewsTheme.cryptoGold.withOpacity(0.5)
-                      ])))),
-              Padding(
-                padding: EdgeInsets.all(isMobile ? 20.0 : 24.0),
-                child: Column(
-                  crossAxisAlignment: usePersianStyle
-                      ? CrossAxisAlignment.end
-                      : CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                              color: IranianNewsTheme.cryptoOrange
-                                  .withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(8)),
-                          child: Text(
-                              (widget.article.source ?? 'News').toUpperCase(),
-                              style: GoogleFonts.montserrat(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: IranianNewsTheme.cryptoOrange))),
-                      const Spacer(),
-                      Icon(Icons.access_time_rounded,
-                          size: 14, color: Colors.white54),
-                      const SizedBox(width: 6),
-                      Text(_formatTimeAgo(widget.article.publishedAt),
-                          style: GoogleFonts.montserrat(
-                              fontSize: 12, color: Colors.white54)),
-                    ]),
-                    const SizedBox(height: 12),
-                    FutureBuilder<String>(
-                        future: widget.getDisplayTitle(widget.article),
-                        builder: (context, snapshot) {
-                          final text = snapshot.data ?? widget.article.title;
-                          final isPersian = widget.containsPersian(text);
-                          return Text(text,
-                              style: widget.getTextStyle(
-                                  isPersian,
-                                  TextStyle(
-                                      fontSize: isMobile ? 18 : 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                      height: 1.4)),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign:
-                                  isPersian ? TextAlign.right : TextAlign.left);
-                        }),
-                    if (!_isExpanded) ...[
-                      const SizedBox(height: 12),
-                      Text(_getSnippet(widget.article.description),
-                          style: widget.getTextStyle(
-                              usePersianStyle,
-                              TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.white.withOpacity(0.6),
-                                  height: 1.5)),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: usePersianStyle
-                              ? TextAlign.right
-                              : TextAlign.left),
-                      const Expanded(child: SizedBox()),
-                    ],
-                    if (_isExpanded) ...[
-                      const SizedBox(height: 16),
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: Colors.white.withOpacity(0.05))),
-                          child: _isLoading
-                              ? Center(
-                                  child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: IranianNewsTheme.cryptoGold)))
-                              : Text(
-                                  _formatMixedText(_summary ??
-                                      "Unable to generate summary."), // Apply fix
-                                  style: widget.getTextStyle(
-                                      usePersianStyle,
-                                      TextStyle(
-                                          fontSize: 13,
-                                          color: IranianNewsTheme.cryptoGold
-                                              .withOpacity(0.9),
-                                          height: 1.5,
-                                          fontStyle: FontStyle.italic)),
-                                  maxLines: 5,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: usePersianStyle
-                                      ? TextAlign.right
-                                      : TextAlign.left),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    Row(
-                      children: [
-                        const Spacer(),
-                        Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                                onTap: _handleRecap,
-                                borderRadius: BorderRadius.circular(20),
-                                child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                            colors: _isExpanded
-                                                ? [
-                                                    Colors.deepPurpleAccent,
-                                                    Colors.purple
-                                                  ]
-                                                : [
-                                                    IranianNewsTheme.cryptoGold,
-                                                    IranianNewsTheme
-                                                        .cryptoOrange
-                                                  ]),
-                                        borderRadius: BorderRadius.circular(20),
-                                        boxShadow: [
-                                          BoxShadow(
-                                              color: (_isExpanded
-                                                      ? Colors.purple
-                                                      : IranianNewsTheme
-                                                          .cryptoOrange)
-                                                  .withOpacity(0.3),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 2))
-                                        ]),
-                                    child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          RotationTransition(
-                                              turns: _iconTurn,
-                                              child: const Icon(
-                                                  Icons.auto_awesome,
-                                                  size: 16,
-                                                  color: Colors.white)),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                              _isExpanded
-                                                  ? 'Close'
-                                                  : 'AI Recap',
-                                              style: GoogleFonts.montserrat(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white))
-                                        ])))),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   String _formatTimeAgo(DateTime? date) {
@@ -1391,34 +1294,263 @@ class _IranianMainArticleCardState extends State<_IranianMainArticleCard>
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final bool useArabicStyle =
+        widget.isArabic || AppFonts.containsArabic(widget.article.title);
+
+    return GestureDetector(
+      onTap: () => widget.onLaunchUrl(widget.article.link),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutQuart,
+        height: _isExpanded ? (isMobile ? 480 : 500) : (isMobile ? 260 : 280),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isExpanded
+                ? widget.accentColor.withOpacity(0.5)
+                : AppColors.borderSubtle,
+            width: _isExpanded ? 2 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isExpanded
+                  ? widget.accentColor.withOpacity(0.15)
+                  : Colors.black.withOpacity(0.2),
+              blurRadius: _isExpanded ? 20 : 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        widget.accentColor,
+                        widget.accentColor.withOpacity(0.3)
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    isMobile ? 20 : 24, 20, isMobile ? 16 : 20, 16),
+                child: Column(
+                  crossAxisAlignment: useArabicStyle
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        if (useArabicStyle) const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: widget.accentColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            widget
+                                .getDisplaySource(widget.article)
+                                .toUpperCase(),
+                            style: AppFonts.caption(
+                              text: widget
+                                  .getDisplaySource(widget.article)
+                                  .toUpperCase(),
+                              fontSize: 10,
+                              color: widget.accentColor,
+                            ).copyWith(letterSpacing: 1.0),
+                          ),
+                        ),
+                        if (!useArabicStyle) const Spacer(),
+                        if (useArabicStyle) const SizedBox(width: 12),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.schedule_rounded,
+                                size: 13, color: AppColors.textMuted),
+                            const SizedBox(width: 5),
+                            Text(
+                              _formatTimeAgo(widget.article.publishedAt),
+                              style: AppFonts.caption(
+                                  text: _formatTimeAgo(
+                                      widget.article.publishedAt),
+                                  fontSize: 11,
+                                  color: AppColors.textMuted),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    FutureBuilder<String>(
+                      future: widget.getDisplayTitle(widget.article),
+                      builder: (context, snapshot) {
+                        final title = snapshot.data ?? widget.article.title;
+                        return Text(
+                          title,
+                          style: AppFonts.title(
+                                  text: title,
+                                  fontSize: isMobile ? 18 : 20,
+                                  color: Colors.white)
+                              .copyWith(height: 1.3),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign:
+                              useArabicStyle ? TextAlign.right : TextAlign.left,
+                        );
+                      },
+                    ),
+                    if (!_isExpanded) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _getSnippet(widget.article.description),
+                        style: AppFonts.body(
+                                text: _getSnippet(widget.article.description),
+                                fontSize: 13,
+                                color: AppColors.textSecondary.withOpacity(0.8))
+                            .copyWith(height: 1.5),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign:
+                            useArabicStyle ? TextAlign.right : TextAlign.left,
+                      ),
+                      const Spacer(),
+                    ],
+                    if (_isExpanded) ...[
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: FullAiRecap(
+                          summary: _summary ?? "Unable to generate summary.",
+                          isArabic: widget.isSummaryArabic,
+                          isLoading: _isLoading,
+                          onClose: () {
+                            setState(() => _isExpanded = false);
+                            _controller.reverse();
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    Row(
+                      children: [
+                        const Spacer(),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _handleRecap,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: _isExpanded
+                                      ? [
+                                          AppColors.accentPurple,
+                                          AppColors.accentPurple
+                                              .withOpacity(0.8)
+                                        ]
+                                      : [
+                                          AppColors.accentGold,
+                                          widget.accentColor
+                                        ],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (_isExpanded
+                                            ? AppColors.accentPurple
+                                            : widget.accentColor)
+                                        .withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  RotationTransition(
+                                    turns: _iconTurn,
+                                    child: const Icon(Icons.auto_awesome,
+                                        size: 14, color: Colors.white),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _isExpanded ? 'Close' : 'AI Recap',
+                                    style: AppFonts.caption(
+                                            text: _isExpanded
+                                                ? 'Close'
+                                                : 'AI Recap',
+                                            fontSize: 11,
+                                            color: Colors.white)
+                                        .copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _IranianSideArticleCard extends StatefulWidget {
+class _ExpandableCompactCard extends StatefulWidget {
   final RssItemModel article;
+  final Color accentColor;
   final bool isArabic;
+  final bool isSummaryArabic;
   final Future<String> Function(RssItemModel) getDisplayTitle;
-  final bool Function(String) containsPersian;
-  final TextStyle Function(bool, TextStyle) getTextStyle;
+  final String Function(RssItemModel) getDisplaySource;
+  final Future<void> Function(String) onLaunchUrl;
 
-  const _IranianSideArticleCard({
+  const _ExpandableCompactCard({
     required this.article,
+    required this.accentColor,
     required this.isArabic,
+    required this.isSummaryArabic,
     required this.getDisplayTitle,
-    required this.containsPersian,
-    required this.getTextStyle,
+    required this.getDisplaySource,
+    required this.onLaunchUrl,
   });
 
   @override
-  State<_IranianSideArticleCard> createState() =>
-      _IranianSideArticleCardState();
+  State<_ExpandableCompactCard> createState() => _ExpandableCompactCardState();
 }
 
-class _IranianSideArticleCardState extends State<_IranianSideArticleCard>
+class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   bool _isLoading = false;
   String? _summary;
-
   late AnimationController _controller;
   late Animation<double> _iconTurn;
 
@@ -1426,12 +1558,9 @@ class _IranianSideArticleCardState extends State<_IranianSideArticleCard>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
+        duration: const Duration(milliseconds: 250), vsync: this);
+    _iconTurn = Tween<double>(begin: 0.0, end: 0.5)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -1440,32 +1569,13 @@ class _IranianSideArticleCardState extends State<_IranianSideArticleCard>
     super.dispose();
   }
 
-  // --- FIX: Helper for card summary ---
-  String _formatMixedText(String text) {
-    if (!widget.isArabic) return text;
-
-    final words = text.split(' ');
-    final buffer = StringBuffer();
-    for (var word in words) {
-      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
-      if (cleanWord.isNotEmpty && !widget.containsPersian(cleanWord)) {
-        buffer.write('($word) ');
-      } else {
-        buffer.write('$word ');
-      }
-    }
-    return buffer.toString().trim();
-  }
-
   Future<void> _handleRecap() async {
     if (_isLoading) return;
-
     if (_isExpanded) {
       setState(() => _isExpanded = false);
       _controller.reverse();
       return;
     }
-
     setState(() {
       _isExpanded = true;
       _isLoading = true;
@@ -1477,7 +1587,7 @@ class _IranianSideArticleCardState extends State<_IranianSideArticleCard>
         final result = await MistralService().summarizeArticle(
           widget.article.title,
           widget.article.description ?? '',
-          isArabic: widget.isArabic,
+          isArabic: widget.isSummaryArabic,
         );
         if (mounted)
           setState(() {
@@ -1487,173 +1597,13 @@ class _IranianSideArticleCardState extends State<_IranianSideArticleCard>
       } catch (e) {
         if (mounted)
           setState(() {
-            _summary = "Error generating summary.";
+            _summary = "Unable to generate summary.";
             _isLoading = false;
           });
       }
     } else {
       setState(() => _isLoading = false);
     }
-  }
-
-  Future<void> _launchUrl(String url) async {
-    if (url.isEmpty) return;
-    final uri = Uri.parse(url.trim());
-    if (await canLaunchUrl(uri))
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool usePersianStyle =
-        widget.isArabic || widget.containsPersian(widget.article.title);
-    final isMobile = ResponsiveHelper.isMobile(context);
-
-    return GestureDetector(
-      onTap: () => _launchUrl(widget.article.link),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        height: _isExpanded ? (isMobile ? 380 : 400) : (isMobile ? 150 : 162),
-        decoration: BoxDecoration(
-            color: IranianNewsTheme.cryptoCardBg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: IranianNewsTheme.cryptoGold.withOpacity(0.1))),
-        child: Padding(
-          padding: EdgeInsets.all(isMobile ? 16.0 : 20.0),
-          child: Column(
-            crossAxisAlignment: usePersianStyle
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: [
-              Text(_formatTimeAgo(widget.article.publishedAt),
-                  style: GoogleFonts.montserrat(
-                      fontSize: 11, color: IranianNewsTheme.textGrey)),
-              const SizedBox(height: 8),
-              FutureBuilder<String>(
-                  future: widget.getDisplayTitle(widget.article),
-                  builder: (context, snapshot) {
-                    final text = snapshot.data ?? widget.article.title;
-                    final isPersian = widget.containsPersian(text);
-                    return Text(text,
-                        style: widget.getTextStyle(
-                            isPersian,
-                            TextStyle(
-                                fontSize: isMobile ? 13 : 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                                height: 1.4)),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign:
-                            isPersian ? TextAlign.right : TextAlign.left);
-                  }),
-              if (!_isExpanded) const Expanded(child: SizedBox()),
-              if (_isExpanded) ...[
-                const SizedBox(height: 12),
-                Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border:
-                            Border.all(color: Colors.white.withOpacity(0.05))),
-                    child: _isLoading
-                        ? const Center(
-                            child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 1.5,
-                                    color: IranianNewsTheme.cryptoGold)))
-                        : Text(
-                            _formatMixedText(_summary ??
-                                "Unable to generate summary."), // Apply fix
-                            style: widget.getTextStyle(
-                                usePersianStyle,
-                                TextStyle(
-                                    fontSize: 12,
-                                    color: IranianNewsTheme.cryptoGold
-                                        .withOpacity(0.9),
-                                    height: 1.4,
-                                    fontStyle: FontStyle.italic)),
-                            maxLines: 6,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: usePersianStyle
-                                ? TextAlign.right
-                                : TextAlign.left,
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              Row(
-                children: [
-                  if (!_isExpanded)
-                    Icon(Icons.arrow_right_alt,
-                        size: 16,
-                        color: IranianNewsTheme.cryptoGold.withOpacity(0.5)),
-                  if (!_isExpanded) const Spacer(),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _handleRecap,
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                                colors: _isExpanded
-                                    ? [Colors.deepPurpleAccent, Colors.purple]
-                                    : [
-                                        IranianNewsTheme.cryptoGold
-                                            .withOpacity(0.8),
-                                        IranianNewsTheme.cryptoOrange
-                                            .withOpacity(0.8)
-                                      ]),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: (_isExpanded
-                                          ? Colors.purple
-                                          : IranianNewsTheme.cryptoOrange)
-                                      .withOpacity(0.2),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1))
-                            ]),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            RotationTransition(
-                              turns: _iconTurn,
-                              child: const Icon(Icons.auto_awesome,
-                                  size: 14, color: Colors.white),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _isExpanded ? 'Close' : 'Recap',
-                              style: GoogleFonts.montserrat(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   String _formatTimeAgo(DateTime? date) {
@@ -1665,5 +1615,156 @@ class _IranianSideArticleCardState extends State<_IranianSideArticleCard>
     if (diff.inDays < 1) return '${diff.inHours}h';
     if (diff.inDays < 7) return '${diff.inDays}d';
     return intl.DateFormat('MMM d').format(date);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String displaySource = widget.getDisplaySource(widget.article);
+    final bool useArabicStyle =
+        widget.isArabic || AppFonts.containsArabic(widget.article.title);
+
+    return GestureDetector(
+      onTap: () => widget.onLaunchUrl(widget.article.link),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutQuart,
+        margin: const EdgeInsets.only(bottom: 12),
+        height: _isExpanded ? 340 : 130,
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isExpanded
+                ? widget.accentColor.withOpacity(0.4)
+                : AppColors.borderSubtle,
+            width: _isExpanded ? 1.5 : 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: useArabicStyle
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  if (useArabicStyle) const Spacer(),
+                  Text(
+                    displaySource.toUpperCase(),
+                    style: AppFonts.caption(
+                            text: displaySource.toUpperCase(),
+                            fontSize: 10,
+                            color: widget.accentColor)
+                        .copyWith(letterSpacing: 0.8),
+                  ),
+                  if (!useArabicStyle) const Spacer(),
+                  if (useArabicStyle) const SizedBox(width: 10),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.schedule_rounded,
+                          size: 11, color: AppColors.textMuted),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatTimeAgo(widget.article.publishedAt),
+                        style: AppFonts.caption(
+                            text: _formatTimeAgo(widget.article.publishedAt),
+                            fontSize: 10,
+                            color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              FutureBuilder<String>(
+                future: widget.getDisplayTitle(widget.article),
+                builder: (context, snapshot) {
+                  final title = snapshot.data ?? widget.article.title;
+                  return Text(
+                    title,
+                    style: AppFonts.title(
+                            text: title, fontSize: 14, color: Colors.white)
+                        .copyWith(height: 1.4),
+                    maxLines: _isExpanded ? 3 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign:
+                        useArabicStyle ? TextAlign.right : TextAlign.left,
+                  );
+                },
+              ),
+              if (_isExpanded) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 160,
+                  child: FullAiRecap(
+                    summary: _summary ?? "Unable to generate summary.",
+                    isArabic: widget.isSummaryArabic,
+                    isLoading: _isLoading,
+                    onClose: () {
+                      setState(() => _isExpanded = false);
+                      _controller.reverse();
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              const Spacer(),
+              Row(
+                children: [
+                  const Spacer(),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _handleRecap,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: _isExpanded
+                                ? [
+                                    AppColors.accentPurple,
+                                    AppColors.accentPurple.withOpacity(0.8)
+                                  ]
+                                : [
+                                    widget.accentColor.withOpacity(0.8),
+                                    widget.accentColor
+                                  ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RotationTransition(
+                              turns: _iconTurn,
+                              child: const Icon(Icons.auto_awesome,
+                                  size: 12, color: Colors.white),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _isExpanded ? 'Close' : 'Recap',
+                              style: AppFonts.caption(
+                                      text: _isExpanded ? 'Close' : 'Recap',
+                                      fontSize: 10,
+                                      color: Colors.white)
+                                  .copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

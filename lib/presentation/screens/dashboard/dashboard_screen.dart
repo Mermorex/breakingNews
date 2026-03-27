@@ -6,17 +6,440 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
 import 'package:news_app/core/utils/responsive.dart';
-import 'package:news_app/core/constants/dashboard_constants.dart';
+// REMOVED: import 'package:news_app/core/constants/dashboard_constants.dart';
+import 'package:news_app/data/models/news_source.dart'; // ADDED: Direct access to sources
 import 'package:news_app/data/grok_service.dart';
-import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:html' as html;
 
-// --- Constants ---
-const Color cryptoDarkBg = Color(0xFF0B0E14);
-const Color cryptoCardBg = Color(0xFF151A25);
-const Color cryptoOrange = Color(0xFFFF8C00);
-const Color cryptoGold = Color(0xFFFFD700);
+// --- REFINED COLOR PALETTE ---
+class AppColors {
+  static const Color bgDark = Color(0xFF0B0E14);
+  static const Color cardBg = Color(0xFF151A25);
+  static const Color cardBgElevated = Color(0xFF1E2532);
+  static const Color accentOrange = Color(0xFFFF8C00);
+  static const Color accentGold = Color(0xFFFFD700);
+  static const Color accentEmerald = Color(0xFF10B981);
+  static const Color accentPurple = Color(0xFF8B5CF6);
+  static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0xFFA0AEC0);
+  static const Color textMuted = Color(0xFF64748B);
+  static const Color borderSubtle = Color(0xFF2D3748);
+}
+
+// --- UNIFIED FONT HELPER ---
+class AppFonts {
+  static bool containsArabic(String text) {
+    return RegExp(
+            r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]')
+        .hasMatch(text);
+  }
+
+  static TextStyle getTextStyle({
+    required double fontSize,
+    required Color color,
+    FontWeight fontWeight = FontWeight.normal,
+    double height = 1.0,
+    double letterSpacing = 0,
+    String? text,
+    bool forceArabic = false,
+  }) {
+    final bool isArabic = forceArabic || (text != null && containsArabic(text));
+
+    if (isArabic) {
+      return GoogleFonts.notoKufiArabic(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+      );
+    }
+
+    return GoogleFonts.inter(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+    );
+  }
+
+  static TextStyle title({
+    required String text,
+    required double fontSize,
+    required Color color,
+    FontWeight fontWeight = FontWeight.w700,
+    double height = 1.3,
+  }) {
+    return getTextStyle(
+      text: text,
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+      height: height,
+    );
+  }
+
+  static TextStyle body({
+    required String text,
+    required double fontSize,
+    required Color color,
+    FontWeight fontWeight = FontWeight.normal,
+    double height = 1.5,
+  }) {
+    return getTextStyle(
+      text: text,
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+      height: height,
+    );
+  }
+
+  static TextStyle caption({
+    required String text,
+    required double fontSize,
+    required Color color,
+    FontWeight fontWeight = FontWeight.w600,
+  }) {
+    return getTextStyle(
+      text: text,
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+      letterSpacing: 0.5,
+    );
+  }
+}
+
+// --- ENHANCED SOURCE EXTRACTOR ---
+class SourceExtractor {
+  static final Map<String, String> _domainMappings = {
+    'mosaiquefm': 'Mosaïque FM',
+    'lapresse': 'La Presse',
+    'jawharafm': 'Jawhara FM',
+    'diwanfm': 'Diwan FM',
+    'radioexpressfm': 'Express FM',
+    'tunisiefocus': 'Tunisie Focus',
+    'babnet': 'Babnet',
+    'jeuneafrique': 'Jeune Afrique',
+    'alchourouk': 'Al Chourouk',
+    'businessnews': 'Business News',
+    'nawaat': 'Nawaat',
+    'yabiladi': 'Yabiladi',
+    'hihi2': 'Hihi2',
+    'aujourdhui': 'Aujourd\'hui le Maroc',
+    'moroccoworldnews': 'Morocco World News',
+    'tsa-algerie': 'TSA',
+    'elwatan': 'El Watan',
+    'djelfa': 'Djelfa',
+    'elkhadra': 'El Khadra',
+    'liberte-algerie': 'Liberté',
+    'algerie360': 'Algérie 360',
+    'elkhabar': 'El Khabar',
+    'mehrnews': 'Mehr News',
+    'tasnimnews': 'Tasnim',
+    'tehrantimes': 'Tehran Times',
+    'asriran': 'Asriran',
+    'farsnews': 'Fars News',
+    'una-oic': 'UNA-OIC',
+    'iranintl': 'Iran International',
+    'tabnak': 'Tabnak',
+    'aljazeera': 'Al Jazeera',
+    'skynewsarabia': 'Sky News Arabia',
+    'bbc': 'BBC',
+    'france24': 'France 24',
+    'reuters': 'Reuters',
+    'nytimes': 'NYT',
+    'theguardian': 'The Guardian',
+    'apnews': 'AP News',
+    'theverge': 'The Verge',
+    'techcrunch': 'TechCrunch',
+    'wired': 'Wired',
+    'themoscowtimes': 'The Moscow Times',
+    'kyivpost': 'Kyiv Post',
+    'euronews': 'Euronews',
+    'trtworld': 'TRT World',
+    'thehindu': 'The Hindu',
+    'indianexpress': 'Indian Express',
+    '7news': '7News Australia',
+    'neoskosmos': 'Neos Kosmos',
+  };
+
+  static String extractSource(String? rssSource, String articleUrl) {
+    if (rssSource != null &&
+        rssSource.isNotEmpty &&
+        rssSource != 'Unknown' &&
+        !_isGenericName(rssSource)) {
+      return _cleanSourceName(rssSource);
+    }
+    return _extractFromUrl(articleUrl);
+  }
+
+  static bool _isGenericName(String name) {
+    final genericNames = [
+      'world news',
+      'tunisia feed',
+      'morocco feed',
+      'algeria feed',
+      'iran feed',
+      'news',
+      'feed',
+      'articles',
+      'unknown',
+      'rss',
+      'xml',
+      'feedburner'
+    ];
+    return genericNames.any((generic) => name.toLowerCase().contains(generic));
+  }
+
+  static String _cleanSourceName(String name) {
+    String clean = name
+        .replaceAll(RegExp(r'\s*-\s*.*$'), '')
+        .replaceAll(RegExp(r'\s*\|.*$'), '')
+        .replaceAll(RegExp(r'\s*RSS.*$', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s*Feed.*$', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s*News.*$', caseSensitive: false), '')
+        .trim();
+
+    for (final entry in _domainMappings.entries) {
+      if (clean.toLowerCase().contains(entry.key.toLowerCase())) {
+        return entry.value;
+      }
+    }
+    return clean;
+  }
+
+  static String _extractFromUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      String host = uri.host.toLowerCase();
+      if (host.startsWith('www.')) host = host.substring(4);
+      if (host.contains(':')) host = host.split(':')[0];
+
+      if (_domainMappings.containsKey(host)) {
+        return _domainMappings[host]!;
+      }
+
+      final parts = host.split('.');
+      for (int i = 0; i < parts.length; i++) {
+        final domainPart = parts.sublist(i).join('.');
+        if (_domainMappings.containsKey(domainPart)) {
+          return _domainMappings[domainPart]!;
+        }
+        if (i == parts.length - 2) {
+          final namePart = parts[i];
+          if (_domainMappings.containsKey(namePart)) {
+            return _domainMappings[namePart]!;
+          }
+        }
+      }
+
+      if (parts.isNotEmpty) {
+        final firstPart = parts[0];
+        return firstPart[0].toUpperCase() + firstPart.substring(1);
+      }
+      return 'Unknown';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+}
+
+// --- SECTION CONFIGURATION MODEL ---
+// Replaces dashboard_constants.dart with dynamic configuration
+class NewsSection {
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final List<NewsSource> sources;
+  final Color accentColor;
+  final VoidCallback? onViewAll;
+
+  NewsSection({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.sources,
+    required this.accentColor,
+    this.onViewAll,
+  });
+}
+
+// --- FULL AI RECAP WIDGET ---
+class FullAiRecap extends StatelessWidget {
+  final String summary;
+  final bool isArabic;
+  final bool isLoading;
+  final VoidCallback onClose;
+
+  const FullAiRecap({
+    super.key,
+    required this.summary,
+    required this.isArabic,
+    required this.isLoading,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return Container(
+        height: 100,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.accentPurple.withOpacity(0.2),
+              AppColors.accentEmerald.withOpacity(0.1),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.accentPurple.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(AppColors.accentPurple),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                isArabic ? 'جاري التلخيص...' : 'Generating summary...',
+                style: AppFonts.body(
+                  text: isArabic ? 'جاري التلخيص...' : 'Generating summary...',
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.accentPurple.withOpacity(0.15),
+            AppColors.cardBgElevated.withOpacity(0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.accentPurple.withOpacity(0.4),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.accentPurple.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.2),
+                border: Border(
+                  bottom: BorderSide(
+                    color: AppColors.accentPurple.withOpacity(0.2),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentPurple.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 14,
+                          color: AppColors.accentPurple,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isArabic ? 'ملخص ذكي' : 'AI Recap',
+                          style: AppFonts.caption(
+                            text: isArabic ? 'ملخص ذكي' : 'AI Recap',
+                            fontSize: 11,
+                            color: AppColors.accentPurple,
+                          ).copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: onClose,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.close,
+                        size: 16,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Text(
+                  summary,
+                  style: AppFonts.body(
+                    text: summary,
+                    fontSize: isArabic ? 14 : 13,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ).copyWith(height: 1.7, letterSpacing: 0.2),
+                  textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class DashboardScreen extends StatefulWidget {
   final List<RssItemModel> worldNewsArticles;
@@ -62,11 +485,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin {
-  // --- LANGUAGE STATE ---
-  // Modes: 'original', 'arabic', 'english'
   String _currentLangMode = 'original';
-
-  // OPTIMIZATION: Cache translations
   final Map<String, String> _translationCache = {};
   final Set<String> _loadingTranslations = {};
 
@@ -75,55 +494,61 @@ class _DashboardScreenState extends State<DashboardScreen>
   String _currentTickerText = "";
   List<RssItemModel> _recentNews = [];
 
-  // Source map generated from constants
-  late final Map<String, String> _urlSourceMap;
+  // Dynamic sections using NewsSources
+  late final List<NewsSection> _sections;
 
   @override
   void initState() {
     super.initState();
-    _initializeSourceMap();
+    _initializeSections();
     _updateRecentNews();
   }
 
-  // --- INITIALIZATION FROM CONSTANTS ---
-  void _initializeSourceMap() {
-    _urlSourceMap = {};
-
-    final List<List<NewsSource>> allFeaturedLists = [
-      DashboardConstants.tunisianFeatured,
-      DashboardConstants.moroccanFeatured,
-      DashboardConstants.algerianFeatured,
-      DashboardConstants.iranianFeatured,
-      DashboardConstants.internationalFeatured,
+  // Initialize sections dynamically from NewsSources
+  void _initializeSections() {
+    _sections = [
+      NewsSection(
+        emoji: '🌍',
+        title: 'World News',
+        subtitle:
+            'Global headlines • ${NewsSources.international.length} sources',
+        sources: NewsSources.international,
+        accentColor: AppColors.accentOrange,
+        onViewAll: widget.onViewWorldNews,
+      ),
+      NewsSection(
+        emoji: '🇹🇳',
+        title: 'Tunisia',
+        subtitle: 'Local updates • ${NewsSources.tunisian.length} sources',
+        sources: NewsSources.tunisian,
+        accentColor: const Color(0xFFE74C3C),
+        onViewAll: widget.onViewTunisia,
+      ),
+      NewsSection(
+        emoji: '🇲🇦',
+        title: 'Morocco',
+        subtitle: 'Local updates • ${NewsSources.moroccan.length} sources',
+        sources: NewsSources.moroccan,
+        accentColor: const Color(0xFF27AE60),
+        onViewAll: widget.onViewMorocco,
+      ),
+      NewsSection(
+        emoji: '🇩🇿',
+        title: 'Algeria',
+        subtitle: 'Local updates • ${NewsSources.algerian.length} sources',
+        sources: NewsSources.algerian,
+        accentColor: const Color(0xFF3498DB),
+        onViewAll: widget.onViewAlgeria,
+      ),
+      NewsSection(
+        emoji: '🇮🇷',
+        title: 'Iran',
+        subtitle: 'Regional news • ${NewsSources.iranian.length} sources',
+        sources: NewsSources.iranian,
+        accentColor: const Color(0xFF9B59B6),
+        onViewAll: widget.onViewIran,
+      ),
     ];
-
-    for (final list in allFeaturedLists) {
-      for (final item in list) {
-        final name = item.name;
-        final url = item.url;
-
-        final nameKey = name.toLowerCase().replaceAll(' ', '');
-        _urlSourceMap[nameKey] = name;
-
-        try {
-          final uri = Uri.parse(url);
-          String host = uri.host;
-          if (host.startsWith('www.')) {
-            host = host.substring(4);
-          }
-          _urlSourceMap[host] = name;
-          final domainParts = host.split('.');
-          if (domainParts.isNotEmpty) {
-            final mainPart = domainParts.first;
-            if (mainPart.length > 2) {
-              _urlSourceMap[mainPart] = name;
-            }
-          }
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
-    }
   }
 
   @override
@@ -135,8 +560,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  // --- LOGIC ---
-
   void _updateRecentNews() {
     final allItems = [
       ...widget.worldNewsArticles,
@@ -145,16 +568,13 @@ class _DashboardScreenState extends State<DashboardScreen>
       ...widget.algerianArticles,
       ...widget.iranianArticles,
     ];
-
     allItems.sort((a, b) {
       final dateA = a.publishedAt ?? DateTime(1970);
       final dateB = b.publishedAt ?? DateTime(1970);
       return dateB.compareTo(dateA);
     });
-
     _recentNews = allItems.take(10).toList();
 
-    // Update ticker based on current mode
     if (_currentLangMode == 'original') {
       _currentTickerText = _recentNews.map((e) => e.title).join('   •   ');
       _initTicker();
@@ -174,7 +594,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     });
 
-    // Update Ticker
     if (_currentLangMode == 'original') {
       _currentTickerText = _recentNews.map((e) => e.title).join('   •   ');
       _initTicker();
@@ -187,11 +606,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (_recentNews.isEmpty) return;
     final titles = _recentNews.map((e) => e.title).toList();
     List<String> translatedTitles = [];
-
     for (var title in titles) {
       translatedTitles.add(await _getTranslatedText(title, _currentLangMode));
     }
-
     if ((_currentLangMode == 'arabic' || _currentLangMode == 'english') &&
         mounted) {
       setState(() {
@@ -201,20 +618,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  // --- NEW: Wrap non-Arabic words in parentheses ---
   String _formatMixedText(String text) {
-    // Only apply formatting if we are in Arabic mode
     if (_currentLangMode != 'arabic') return text;
-
     final words = text.split(' ');
     final buffer = StringBuffer();
-
     for (var word in words) {
-      // Remove punctuation to check the core word
       final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
-
-      if (cleanWord.isNotEmpty && !_containsArabic(cleanWord)) {
-        // Word is not Arabic, wrap it
+      if (cleanWord.isNotEmpty && !AppFonts.containsArabic(cleanWord)) {
         buffer.write('($word) ');
       } else {
         buffer.write('$word ');
@@ -226,13 +636,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   String _getDisplayTitle(RssItemModel article) {
     final original = article.title;
     if (_currentLangMode == 'original') return original;
-
     final cacheKey = '$original-$_currentLangMode';
     if (_translationCache.containsKey(cacheKey)) {
-      // Apply formatting when returning from cache
       return _formatMixedText(_translationCache[cacheKey]!);
     }
-
     if (!_loadingTranslations.contains(cacheKey)) {
       _loadTranslation(original, _currentLangMode);
     }
@@ -243,7 +650,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (text.isEmpty) return;
     final cacheKey = '$text-$targetMode';
     _loadingTranslations.add(cacheKey);
-
     try {
       final translated = await _translateText(text, targetMode);
       if (translated != text && mounted) {
@@ -269,27 +675,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (_translationCache.containsKey(cacheKey))
       return _translationCache[cacheKey]!;
 
-    // Determine direction
     bool toArabic = targetMode == 'arabic';
-    bool isSourceArabic = _containsArabic(text);
+    bool isSourceArabic = AppFonts.containsArabic(text);
 
-    // Skip if already in target language
     if ((toArabic && isSourceArabic) ||
         (!toArabic && !isSourceArabic && targetMode == 'english')) {
       return text;
     }
 
     try {
-      // Using auto-detect for source ('auto') is safer for mixed feeds
       final sourceLang = 'auto';
       final targetLang = toArabic ? 'ar' : 'en';
-
       final url = Uri.parse(
         'https://translate.googleapis.com/translate_a/single?client=gtx&sl=$sourceLang&tl=$targetLang&dt=t&q=${Uri.encodeComponent(text)}',
       );
-
       final response = await http.get(url).timeout(const Duration(seconds: 2));
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data != null && data[0] != null && data[0] is List) {
@@ -299,106 +699,36 @@ class _DashboardScreenState extends State<DashboardScreen>
           return translatedParts;
         }
       }
-    } catch (e) {
-      // Fail silently
-    }
+    } catch (e) {}
     return text;
   }
 
-  // --- SOURCE EXTRACTION HELPER ---
   String _getDisplaySource(RssItemModel article) {
-    if (article.source != null &&
-        article.source!.isNotEmpty &&
-        article.source != 'Unknown' &&
-        !_isGenericSourceName(article.source!)) {
-      return _cleanSourceName(article.source!);
-    }
-
-    if (article.link.isNotEmpty) {
-      final urlSource = _extractSourceFromUrl(article.link);
-      if (urlSource != null) return urlSource;
-    }
-
-    return 'Unknown';
+    return SourceExtractor.extractSource(article.source, article.link);
   }
 
-  bool _isGenericSourceName(String name) {
-    final genericNames = [
-      'world news',
-      'tunisia feed',
-      'morocco feed',
-      'algeria feed',
-      'iran feed',
-      'news',
-      'feed',
-      'articles',
-      'unknown'
-    ];
-    return genericNames.any((generic) => name.toLowerCase().contains(generic));
-  }
-
-  String _cleanSourceName(String name) {
-    final cleanName = name
-        .replaceAll(RegExp(r'\s*-\s*.*$'), '')
-        .replaceAll(RegExp(r'\s*\|.*$'), '')
-        .replaceAll(RegExp(r'\s*RSS.*$', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\s*Feed.*$', caseSensitive: false), '')
-        .trim();
-
-    final Map<String, String> mappings = {
-      'BBC News': 'BBC',
-      'Reuters.com': 'Reuters',
-      'Reuters Agency': 'Reuters',
-      'Al Jazeera English': 'Al Jazeera',
-      'CNN.com': 'CNN',
-      'The New York Times': 'NYT',
-      'NYTimes.com': 'NYT',
-      'The Guardian': 'Guardian',
-    };
-
-    for (final entry in mappings.entries) {
-      if (cleanName.contains(entry.key)) return entry.value;
-    }
-
-    return cleanName;
-  }
-
-  String? _extractSourceFromUrl(String url) {
-    final lowerUrl = url.toLowerCase();
-    for (final entry in _urlSourceMap.entries) {
-      if (lowerUrl.contains(entry.key.toLowerCase())) {
-        return entry.value;
-      }
-    }
-    return null;
-  }
-
-  // --- ANIMATION ---
   void _initTicker() {
     if (_currentTickerText.isEmpty) return;
-
     final textPainter = TextPainter(
       text: TextSpan(
         text: _currentTickerText,
-        style: GoogleFonts.montserrat(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
+        style: AppFonts.body(
+          text: _currentTickerText,
+          fontSize: 15,
           color: Colors.white,
+          fontWeight: FontWeight.w500,
         ),
       ),
       maxLines: 1,
       textDirection: ui.TextDirection.ltr,
     )..layout();
-
     _textWidth = textPainter.width;
-    final duration = Duration(milliseconds: ((_textWidth / 60) * 1000).round());
-
+    final duration = Duration(milliseconds: ((_textWidth / 80) * 1000).round());
     _tickerController?.dispose();
     _tickerController = AnimationController(
       vsync: this,
       duration: duration,
     )..repeat();
-
     if (mounted) setState(() {});
   }
 
@@ -408,109 +738,181 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.dispose();
   }
 
-  // --- UI BUILD ---
+  Future<void> _launchUrl(String url) async {
+    try {
+      html.window.open(url, '_blank');
+    } catch (e) {
+      final Uri uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        SliverToBoxAdapter(child: _buildAnimatedHeader()),
+        SliverToBoxAdapter(child: _buildModernHeader()),
         SliverToBoxAdapter(child: _buildQuickStatsRow()),
-        _buildSection(
-          emoji: '🌍',
-          title: 'World News',
-          articles: widget.worldNewsArticles,
-          onViewAll: widget.onViewWorldNews,
-        ),
-        _buildSection(
-          emoji: '🇹🇳',
-          title: 'Tunisia Feed',
-          articles: widget.tunisianArticles,
-          onViewAll: widget.onViewTunisia,
-        ),
-        _buildSection(
-          emoji: '🇲🇦',
-          title: 'Morocco Feed',
-          articles: widget.moroccanArticles,
-          onViewAll: widget.onViewMorocco,
-        ),
-        _buildSection(
-          emoji: '🇩🇿',
-          title: 'Algeria Feed',
-          articles: widget.algerianArticles,
-          onViewAll: widget.onViewAlgeria,
-        ),
-        _buildSection(
-          emoji: '🇮🇷',
-          title: 'Iran Feed',
-          articles: widget.iranianArticles,
-          onViewAll: widget.onViewIran,
-        ),
-        const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+        // Dynamic sections from NewsSources
+        ..._sections.map((section) => _buildModernSection(
+              emoji: section.emoji,
+              title: section.title,
+              subtitle: section.subtitle,
+              articles: _getArticlesForSection(section.title),
+              onViewAll: section.onViewAll!,
+              accentColor: section.accentColor,
+              sourceCount: section.sources.length,
+            )),
+        const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
       ],
     );
   }
 
-  Widget _buildAnimatedHeader() {
-    final isMobile = ResponsiveHelper.isMobile(context);
+  // Helper to get articles based on section title
+  List<RssItemModel> _getArticlesForSection(String title) {
+    switch (title) {
+      case 'World News':
+        return widget.worldNewsArticles;
+      case 'Tunisia':
+        return widget.tunisianArticles;
+      case 'Morocco':
+        return widget.moroccanArticles;
+      case 'Algeria':
+        return widget.algerianArticles;
+      case 'Iran':
+        return widget.iranianArticles;
+      default:
+        return [];
+    }
+  }
 
+  Widget _buildModernHeader() {
+    final isMobile = ResponsiveHelper.isMobile(context);
     return Container(
-      margin: EdgeInsets.fromLTRB(isMobile ? 0 : 32, 24, isMobile ? 0 : 32, 0),
+      margin:
+          EdgeInsets.fromLTRB(isMobile ? 16 : 32, 24, isMobile ? 16 : 32, 0),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [cryptoOrange, cryptoGold],
+        gradient: LinearGradient(
+          colors: [
+            AppColors.accentOrange.withOpacity(0.9),
+            AppColors.accentGold.withOpacity(0.7),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: isMobile ? BorderRadius.zero : BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.accentOrange.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-                isMobile ? 16 : 24, 20, isMobile ? 16 : 24, 16),
-            child: Row(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.1),
+                  Colors.transparent,
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      isMobile ? 20 : 28, 24, isMobile ? 20 : 28, 20),
+                  child: Row(
                     children: [
-                      Text('LIVE FEED',
-                          style: GoogleFonts.montserrat(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white.withOpacity(0.9),
-                              letterSpacing: 2)),
-                      const SizedBox(height: 4),
-                      Text('${widget.totalArticles} Articles',
-                          style: GoogleFonts.montserrat(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white)),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'LIVE FEED',
+                                style: AppFonts.caption(
+                                  text: 'LIVE FEED',
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                ).copyWith(
+                                    letterSpacing: 2,
+                                    fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Text(
+                                  '${widget.totalArticles}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    height: 1,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Articles',
+                                  style: AppFonts.body(
+                                    text: 'Articles',
+                                    fontSize: 16,
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      _buildModernLangToggle(),
                     ],
                   ),
                 ),
-                _buildLangToggle(),
+                Container(
+                  height: 54,
+                  width: double.infinity,
+                  color: Colors.black.withOpacity(0.2),
+                  child: _tickerController == null
+                      ? Center(
+                          child: Text(
+                            "Loading news feed...",
+                            style: AppFonts.body(
+                              text: "Loading news feed...",
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.6),
+                            ),
+                          ),
+                        )
+                      : _buildModernTicker(),
+                ),
               ],
             ),
           ),
-          Container(
-            height: 50,
-            width: double.infinity,
-            color: Colors.black.withOpacity(0.15),
-            child: _tickerController == null
-                ? Center(
-                    child: Text("Waiting for feed...",
-                        style: GoogleFonts.montserrat(color: Colors.white54)))
-                : _buildTickerWidget(),
-          ),
-          const SizedBox(height: 10),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildTickerWidget() {
+  Widget _buildModernTicker() {
     return ClipRect(
       child: OverflowBox(
         maxWidth: double.infinity,
@@ -526,9 +928,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildTickerText(_currentTickerText),
-              const SizedBox(width: 100),
-              _buildTickerText(_currentTickerText),
+              _buildTickerItem(_currentTickerText),
+              const SizedBox(width: 80),
+              _buildTickerItem(_currentTickerText),
             ],
           ),
         ),
@@ -536,71 +938,53 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildTickerText(String text) => Text(text,
-      style: GoogleFonts.montserrat(
-          fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-      maxLines: 1);
-
-  Widget _buildQuickStatsRow() {
-    final isMobile = ResponsiveHelper.isMobile(context);
+  Widget _buildTickerItem(String text) {
     return Container(
-      margin:
-          EdgeInsets.fromLTRB(isMobile ? 16 : 32, 16, isMobile ? 16 : 32, 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _buildQuickStat('🇹🇳', widget.tunisianCount, widget.onViewTunisia),
-            const SizedBox(width: 8),
-            _buildQuickStat('🇲🇦', widget.moroccanCount, widget.onViewMorocco),
-            const SizedBox(width: 8),
-            _buildQuickStat('🇩🇿', widget.algerianCount, widget.onViewAlgeria),
-            const SizedBox(width: 8),
-            _buildQuickStat('🇮🇷', widget.iranianCount, widget.onViewIran),
-          ],
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.circle,
+            size: 6,
+            color: AppColors.accentGold,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            text,
+            style: AppFonts.body(
+              text: text,
+              fontSize: 15,
+              color: Colors.white.withOpacity(0.95),
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildQuickStat(String emoji, int count, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-            color: cryptoCardBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cryptoOrange.withOpacity(0.2))),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(emoji, style: const TextStyle(fontSize: 18)),
-          const SizedBox(width: 8),
-          Text(count.toString(),
-              style: GoogleFonts.montserrat(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontSize: 14)),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildLangToggle() {
+  Widget _buildModernLangToggle() {
     String displayText;
     IconData iconData;
+    Color bgColor;
 
     switch (_currentLangMode) {
       case 'arabic':
         displayText = 'AR';
         iconData = Icons.translate;
+        bgColor = Colors.white.withOpacity(0.25);
         break;
       case 'english':
         displayText = 'EN';
         iconData = Icons.translate;
+        bgColor = Colors.white.withOpacity(0.25);
         break;
       default:
-        displayText = 'SRC';
+        displayText = 'ORIG';
         iconData = Icons.language;
+        bgColor = Colors.white.withOpacity(0.15);
     }
 
     return Material(
@@ -609,51 +993,149 @@ class _DashboardScreenState extends State<DashboardScreen>
         onTap: _toggleLanguage,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.3))),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(iconData, color: Colors.white, size: 16),
-            const SizedBox(width: 6),
-            Text(displayText,
-                style: GoogleFonts.montserrat(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 14)),
-          ]),
+            color: bgColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(iconData, color: Colors.white, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                displayText,
+                style: AppFonts.caption(
+                  text: displayText,
+                  fontSize: 12,
+                  color: Colors.white,
+                ).copyWith(letterSpacing: 0.5),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // --- SECTIONS ---
+  Widget _buildQuickStatsRow() {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    return Container(
+      margin:
+          EdgeInsets.fromLTRB(isMobile ? 16 : 32, 20, isMobile ? 16 : 32, 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildStatChip('🇹🇳', widget.tunisianCount, widget.onViewTunisia,
+                const Color(0xFFE74C3C), NewsSources.tunisian.length),
+            const SizedBox(width: 10),
+            _buildStatChip('🇲🇦', widget.moroccanCount, widget.onViewMorocco,
+                const Color(0xFF27AE60), NewsSources.moroccan.length),
+            const SizedBox(width: 10),
+            _buildStatChip('🇩🇿', widget.algerianCount, widget.onViewAlgeria,
+                const Color(0xFF3498DB), NewsSources.algerian.length),
+            const SizedBox(width: 10),
+            _buildStatChip('🇮🇷', widget.iranianCount, widget.onViewIran,
+                const Color(0xFF9B59B6), NewsSources.iranian.length),
+          ],
+        ),
+      ),
+    );
+  }
 
-  Widget _buildSection({
+  Widget _buildStatChip(String emoji, int count, VoidCallback onTap,
+      Color color, int sourceCount) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  count.toString(),
+                  style: AppFonts.title(
+                    text: count.toString(),
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  '$sourceCount sources',
+                  style: AppFonts.caption(
+                    text: '$sourceCount sources',
+                    fontSize: 9,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernSection({
     required String emoji,
     required String title,
+    required String subtitle,
     required List<RssItemModel> articles,
     required VoidCallback onViewAll,
+    required Color accentColor,
+    required int sourceCount,
   }) {
     final isMobile = ResponsiveHelper.isMobile(context);
 
     return SliverToBoxAdapter(
       child: Padding(
         padding:
-            EdgeInsets.fromLTRB(isMobile ? 16 : 32, 16, isMobile ? 16 : 32, 24),
+            EdgeInsets.fromLTRB(isMobile ? 16 : 32, 28, isMobile ? 16 : 32, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                          colors: [cryptoOrange, cryptoGold]),
-                      borderRadius: BorderRadius.circular(16)),
-                  child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                    color: accentColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: accentColor.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      emoji,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -662,42 +1144,41 @@ class _DashboardScreenState extends State<DashboardScreen>
                     children: [
                       Text(
                         title,
-                        style: GoogleFonts.montserrat(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                        style: AppFonts.title(
+                          text: title,
+                          fontSize: 20,
                           color: Colors.white,
-                        ),
+                        ).copyWith(letterSpacing: -0.5),
                       ),
                       const SizedBox(height: 2),
-                      Container(
-                        height: 2,
-                        width: 60,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                              colors: [cryptoOrange, cryptoGold]),
-                          borderRadius: BorderRadius.circular(2),
+                      Text(
+                        subtitle,
+                        style: AppFonts.body(
+                          text: subtitle,
+                          fontSize: 13,
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.w500,
                         ),
-                      )
+                      ),
                     ],
                   ),
                 ),
-                _buildViewAllButton(onViewAll),
+                _buildViewAllButton(onViewAll, accentColor),
               ],
             ),
             const SizedBox(height: 20),
             if (widget.isLoading && articles.isEmpty)
-              _buildLoadingPlaceholder()
+              _buildLoadingState()
             else if (articles.isNotEmpty)
               LayoutBuilder(
                 builder: (context, constraints) {
                   if (constraints.maxWidth < 700) {
                     return Column(
                       children: [
-                        _buildMainArticleCard(articles.first),
-                        ...articles.skip(1).take(2).map((article) => Padding(
-                              padding: const EdgeInsets.only(top: 16),
-                              child: _buildSideArticleCard(article),
-                            )),
+                        _buildFeaturedCard(articles.first, accentColor),
+                        const SizedBox(height: 12),
+                        ...articles.skip(1).take(2).map((article) =>
+                            _buildCompactCard(article, accentColor)),
                       ],
                     );
                   }
@@ -705,18 +1186,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                          flex: 5,
-                          child: _buildMainArticleCard(articles.first)),
-                      const SizedBox(width: 20),
+                        flex: 5,
+                        child: _buildFeaturedCard(articles.first, accentColor),
+                      ),
+                      const SizedBox(width: 16),
                       Expanded(
                         flex: 4,
                         child: Column(
                           children: [
                             if (articles.length > 1)
-                              _buildSideArticleCard(articles[1]),
-                            if (articles.length > 2) const SizedBox(height: 16),
+                              _buildCompactCard(articles[1], accentColor),
+                            if (articles.length > 2) const SizedBox(height: 12),
                             if (articles.length > 2)
-                              _buildSideArticleCard(articles[2]),
+                              _buildCompactCard(articles[2], accentColor),
                           ],
                         ),
                       ),
@@ -725,7 +1207,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 },
               )
             else if (widget.totalArticles == 0)
-              _buildLoadingPlaceholder()
+              _buildLoadingState()
             else
               _buildEmptyState(),
           ],
@@ -734,7 +1216,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildViewAllButton(VoidCallback onTap) {
+  Widget _buildViewAllButton(VoidCallback onTap, Color accentColor) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -743,132 +1225,165 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-              color: cryptoOrange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: cryptoOrange.withOpacity(0.3))),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text('View All',
-                style: GoogleFonts.montserrat(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: cryptoOrange)),
-            const SizedBox(width: 6),
-            Icon(Icons.arrow_forward_rounded, size: 14, color: cryptoOrange),
-          ]),
+            color: accentColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: accentColor.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'View All',
+                style: AppFonts.caption(
+                  text: 'View All',
+                  fontSize: 12,
+                  color: accentColor,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 14,
+                color: accentColor,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // --- UPDATED: Card Wrappers ---
-
-  Widget _buildMainArticleCard(RssItemModel article) {
-    // Determine UI direction based on mode
-    // If Arabic -> Force RTL/Arabic style
-    // If English -> Force LTR/English style
-    // If Original -> Detect from content
-    final bool forceArabicUI = _currentLangMode == 'arabic';
-
-    // Determine AI Summary language
-    // Original -> Arabic (Default)
-    // Arabic -> Arabic
-    // English -> English
-    final bool summaryInArabic = _currentLangMode != 'english';
-
-    return _ExpandableArticleCard(
-      article: article,
-      isArabic: forceArabicUI, // Used for UI layout
-      isSummaryArabic: summaryInArabic, // Used for AI generation
-      getDisplayTitle: _getDisplayTitle,
-      containsArabic: _containsArabic,
-      getTextStyle: _getTextStyle,
-      getDisplaySource: _getDisplaySource,
+  Widget _buildLoadingState() {
+    return Container(
+      height: 320,
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                color: AppColors.accentOrange,
+                strokeWidth: 3,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Loading articles...',
+              style: AppFonts.body(
+                text: 'Loading articles...',
+                fontSize: 14,
+                color: AppColors.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildSideArticleCard(RssItemModel article) {
-    final bool forceArabicUI = _currentLangMode == 'arabic';
-    final bool summaryInArabic = _currentLangMode != 'english';
-
-    return _ExpandableSideArticleCard(
-      article: article,
-      isArabic: forceArabicUI,
-      isSummaryArabic: summaryInArabic,
-      getDisplayTitle: _getDisplayTitle,
-      containsArabic: _containsArabic,
-      getTextStyle: _getTextStyle,
-      getDisplaySource: _getDisplaySource,
-    );
-  }
-
-  // --- HELPERS ---
-  TextStyle _getTextStyle(bool isArabic, TextStyle style) {
-    return isArabic
-        ? GoogleFonts.notoKufiArabic(textStyle: style)
-        : GoogleFonts.montserrat(textStyle: style);
-  }
-
-  bool _containsArabic(String text) =>
-      RegExp(r'[\u0600-\u06FF]').hasMatch(text);
-
-  Widget _buildEmptyState() => Container(
+  Widget _buildEmptyState() {
+    return Container(
       height: 200,
       decoration: BoxDecoration(
-          color: cryptoCardBg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: cryptoOrange.withOpacity(0.1))),
-      child: Center(
-          child: Text('No articles found',
-              style: GoogleFonts.montserrat(color: Colors.white38))));
-
-  Widget _buildLoadingPlaceholder() {
-    return Container(
-      height: 300,
-      decoration: BoxDecoration(
-        color: cryptoCardBg,
-        borderRadius: BorderRadius.circular(24),
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderSubtle),
       ),
-      child: const Center(
-        child: CircularProgressIndicator(
-          color: cryptoOrange,
-          strokeWidth: 2,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.article_outlined,
+              size: 48,
+              color: AppColors.textMuted,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No articles found',
+              style: AppFonts.title(
+                text: 'No articles found',
+                fontSize: 15,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFeaturedCard(RssItemModel article, Color accentColor) {
+    final bool hasArabicContent = AppFonts.containsArabic(article.title);
+    final bool useArabicStyle =
+        _currentLangMode == 'arabic' || hasArabicContent;
+
+    return _ExpandableFeaturedCard(
+      article: article,
+      accentColor: accentColor,
+      isArabic: useArabicStyle,
+      isSummaryArabic: _currentLangMode != 'english',
+      getDisplayTitle: _getDisplayTitle,
+      getDisplaySource: _getDisplaySource,
+      onLaunchUrl: _launchUrl,
+    );
+  }
+
+  Widget _buildCompactCard(RssItemModel article, Color accentColor) {
+    final bool hasArabicContent = AppFonts.containsArabic(article.title);
+    final bool useArabicStyle =
+        _currentLangMode == 'arabic' || hasArabicContent;
+
+    return _ExpandableCompactCard(
+      article: article,
+      accentColor: accentColor,
+      isArabic: useArabicStyle,
+      isSummaryArabic: _currentLangMode != 'english',
+      getDisplayTitle: _getDisplayTitle,
+      getDisplaySource: _getDisplaySource,
+      onLaunchUrl: _launchUrl,
     );
   }
 }
 
-// --- WIDGET 1: Main Article Card ---
-
-class _ExpandableArticleCard extends StatefulWidget {
+class _ExpandableFeaturedCard extends StatefulWidget {
   final RssItemModel article;
-  final bool isArabic; // UI Direction
-  final bool isSummaryArabic; // AI Language
+  final Color accentColor;
+  final bool isArabic;
+  final bool isSummaryArabic;
   final String Function(RssItemModel) getDisplayTitle;
-  final bool Function(String) containsArabic;
-  final TextStyle Function(bool, TextStyle) getTextStyle;
   final String Function(RssItemModel) getDisplaySource;
+  final Future<void> Function(String) onLaunchUrl;
 
-  const _ExpandableArticleCard({
+  const _ExpandableFeaturedCard({
     required this.article,
+    required this.accentColor,
     required this.isArabic,
     required this.isSummaryArabic,
     required this.getDisplayTitle,
-    required this.containsArabic,
-    required this.getTextStyle,
     required this.getDisplaySource,
+    required this.onLaunchUrl,
   });
 
   @override
-  State<_ExpandableArticleCard> createState() => _ExpandableArticleCardState();
+  State<_ExpandableFeaturedCard> createState() =>
+      _ExpandableFeaturedCardState();
 }
 
-class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
+class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   bool _isLoading = false;
   String? _summary;
-
   late AnimationController _controller;
   late Animation<double> _iconTurn;
 
@@ -876,11 +1391,11 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 250),
       vsync: this,
     );
     _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
   }
 
@@ -892,13 +1407,11 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
 
   Future<void> _handleRecap() async {
     if (_isLoading) return;
-
     if (_isExpanded) {
       setState(() => _isExpanded = false);
       _controller.reverse();
       return;
     }
-
     setState(() {
       _isExpanded = true;
       _isLoading = true;
@@ -910,234 +1423,25 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
         final result = await MistralService().summarizeArticle(
           widget.article.title,
           widget.article.description ?? '',
-          isArabic: widget.isSummaryArabic, // Use specific flag
+          isArabic: widget.isSummaryArabic,
         );
-        if (mounted)
+        if (mounted) {
           setState(() {
             _summary = result;
             _isLoading = false;
           });
+        }
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           setState(() {
-            _summary = "Error generating summary.";
+            _summary = "Unable to generate summary.";
             _isLoading = false;
           });
+        }
       }
     } else {
       setState(() => _isLoading = false);
     }
-  }
-
-  // Helper to wrap non-Arabic words in parentheses
-  String _formatSummaryText(String text) {
-    // Only format if the summary is supposed to be Arabic
-    if (!widget.isSummaryArabic) return text;
-
-    final words = text.split(' ');
-    final buffer = StringBuffer();
-
-    for (var word in words) {
-      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
-      if (cleanWord.isNotEmpty && !widget.containsArabic(cleanWord)) {
-        buffer.write('($word) ');
-      } else {
-        buffer.write('$word ');
-      }
-    }
-    return buffer.toString().trim();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool hasArabicContent = widget.containsArabic(widget.article.title);
-    final String displayTitle = widget.getDisplayTitle(widget.article);
-
-    // Logic: If mode is Arabic -> Force Arabic Style.
-    // If mode is not Arabic (English/Original) -> Use Arabic style only if content is Arabic.
-    // This handles the "Original" mode correctly by detecting content.
-    final bool useArabicStyle = widget.isArabic || hasArabicContent;
-
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final String displaySource = widget.getDisplaySource(widget.article);
-
-    return GestureDetector(
-      onTap: () => _launchUrl(widget.article.link),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        height: _isExpanded ? (isMobile ? 420 : 460) : (isMobile ? 280 : 320),
-        decoration: BoxDecoration(
-            color: cryptoCardBg,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: cryptoOrange.withOpacity(0.2))),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
-            children: [
-              Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                      width: 5,
-                      decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [
-                        cryptoOrange,
-                        cryptoGold.withOpacity(0.5)
-                      ])))),
-              Padding(
-                padding: EdgeInsets.all(isMobile ? 20.0 : 24.0),
-                child: Column(
-                  crossAxisAlignment: useArabicStyle
-                      ? CrossAxisAlignment.end
-                      : CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(children: [
-                      Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                              color: cryptoOrange.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(8)),
-                          child: Text(displaySource.toUpperCase(),
-                              style: GoogleFonts.montserrat(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: cryptoOrange))),
-                      const Spacer(),
-                      Icon(Icons.access_time_rounded,
-                          size: 14, color: Colors.white54),
-                      const SizedBox(width: 6),
-                      Text(_formatTimeAgo(widget.article.publishedAt),
-                          style: GoogleFonts.montserrat(
-                              fontSize: 12, color: Colors.white54)),
-                    ]),
-                    const SizedBox(height: 12),
-                    Text(displayTitle,
-                        style: widget.getTextStyle(
-                            useArabicStyle,
-                            TextStyle(
-                                fontSize: isMobile ? 18 : 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                height: 1.4)),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign:
-                            useArabicStyle ? TextAlign.right : TextAlign.left),
-                    if (!_isExpanded) ...[
-                      const SizedBox(height: 12),
-                      Text(_getSnippet(widget.article.description),
-                          style: widget.getTextStyle(
-                              useArabicStyle,
-                              TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.white.withOpacity(0.6),
-                                  height: 1.5)),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: useArabicStyle
-                              ? TextAlign.right
-                              : TextAlign.left),
-                      const Expanded(child: SizedBox()),
-                    ],
-                    if (_isExpanded) ...[
-                      const SizedBox(height: 16),
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: Colors.white.withOpacity(0.05))),
-                          child: _isLoading
-                              ? Center(
-                                  child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2, color: cryptoGold)))
-                              : Text(
-                                  _formatSummaryText(_summary ??
-                                      "Unable to generate summary."),
-                                  style: widget.getTextStyle(
-                                      useArabicStyle,
-                                      TextStyle(
-                                          fontSize: 13,
-                                          color: cryptoGold.withOpacity(0.9),
-                                          height: 1.5,
-                                          fontStyle: FontStyle.italic)),
-                                  maxLines: 5,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: useArabicStyle
-                                      ? TextAlign.right
-                                      : TextAlign.left),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    Row(
-                      children: [
-                        const Spacer(),
-                        Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                                onTap: _handleRecap,
-                                borderRadius: BorderRadius.circular(20),
-                                child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                            colors: _isExpanded
-                                                ? [
-                                                    Colors.deepPurpleAccent,
-                                                    Colors.purple
-                                                  ]
-                                                : [cryptoGold, cryptoOrange]),
-                                        borderRadius: BorderRadius.circular(20),
-                                        boxShadow: [
-                                          BoxShadow(
-                                              color: (_isExpanded
-                                                      ? Colors.purple
-                                                      : cryptoOrange)
-                                                  .withOpacity(0.3),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 2))
-                                        ]),
-                                    child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          RotationTransition(
-                                              turns: _iconTurn,
-                                              child: const Icon(
-                                                  Icons.auto_awesome,
-                                                  size: 16,
-                                                  color: Colors.white)),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                              _isExpanded
-                                                  ? 'Close'
-                                                  : 'AI Recap',
-                                              style: GoogleFonts.montserrat(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white))
-                                        ])))),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   String _formatTimeAgo(DateTime? date) {
@@ -1159,45 +1463,274 @@ class _ExpandableArticleCardState extends State<_ExpandableArticleCard>
         .trim();
   }
 
-  Future<void> _launchUrl(String url) async {
-    final Uri uri = Uri.parse(url);
-    if (await canLaunchUrl(uri))
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final String displayTitle = widget.getDisplayTitle(widget.article);
+    final String displaySource = widget.getDisplaySource(widget.article);
+    final bool useArabicStyle = widget.isArabic;
+
+    return GestureDetector(
+      onTap: () => widget.onLaunchUrl(widget.article.link),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutQuart,
+        height: _isExpanded ? (isMobile ? 480 : 500) : (isMobile ? 260 : 280),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isExpanded
+                ? widget.accentColor.withOpacity(0.5)
+                : AppColors.borderSubtle,
+            width: _isExpanded ? 2 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isExpanded
+                  ? widget.accentColor.withOpacity(0.15)
+                  : Colors.black.withOpacity(0.2),
+              blurRadius: _isExpanded ? 20 : 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        widget.accentColor,
+                        widget.accentColor.withOpacity(0.3),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    isMobile ? 20 : 24, 20, isMobile ? 16 : 20, 16),
+                child: Column(
+                  crossAxisAlignment: useArabicStyle
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        if (useArabicStyle) const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: widget.accentColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            displaySource.toUpperCase(),
+                            style: AppFonts.caption(
+                              text: displaySource.toUpperCase(),
+                              fontSize: 10,
+                              color: widget.accentColor,
+                            ).copyWith(letterSpacing: 1.0),
+                          ),
+                        ),
+                        if (!useArabicStyle) const Spacer(),
+                        if (useArabicStyle) const SizedBox(width: 12),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.schedule_rounded,
+                              size: 13,
+                              color: AppColors.textMuted,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _formatTimeAgo(widget.article.publishedAt),
+                              style: AppFonts.caption(
+                                text:
+                                    _formatTimeAgo(widget.article.publishedAt),
+                                fontSize: 11,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      displayTitle,
+                      style: AppFonts.title(
+                        text: displayTitle,
+                        fontSize: isMobile ? 18 : 20,
+                        color: Colors.white,
+                      ).copyWith(height: 1.3, letterSpacing: -0.3),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign:
+                          useArabicStyle ? TextAlign.right : TextAlign.left,
+                    ),
+                    if (!_isExpanded) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _getSnippet(widget.article.description),
+                        style: AppFonts.body(
+                          text: _getSnippet(widget.article.description),
+                          fontSize: 14,
+                          color: AppColors.textSecondary.withOpacity(0.8),
+                        ).copyWith(height: 1.5),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign:
+                            useArabicStyle ? TextAlign.right : TextAlign.left,
+                      ),
+                      const Spacer(),
+                    ],
+                    if (_isExpanded) ...[
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: FullAiRecap(
+                          summary: _summary ?? "Unable to generate summary.",
+                          isArabic: widget.isSummaryArabic,
+                          isLoading: _isLoading,
+                          onClose: () {
+                            setState(() => _isExpanded = false);
+                            _controller.reverse();
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    Row(
+                      children: [
+                        if (!useArabicStyle) ...[
+                          Icon(
+                            Icons.open_in_new_rounded,
+                            size: 14,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Read article',
+                            style: AppFonts.body(
+                              text: 'Read article',
+                              fontSize: 12,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _handleRecap,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: _isExpanded
+                                      ? [
+                                          AppColors.accentPurple,
+                                          AppColors.accentPurple
+                                              .withOpacity(0.8),
+                                        ]
+                                      : [
+                                          AppColors.accentGold,
+                                          AppColors.accentOrange,
+                                        ],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (_isExpanded
+                                            ? AppColors.accentPurple
+                                            : AppColors.accentOrange)
+                                        .withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  RotationTransition(
+                                    turns: _iconTurn,
+                                    child: const Icon(
+                                      Icons.auto_awesome,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _isExpanded ? 'Close' : 'AI Recap',
+                                    style: AppFonts.caption(
+                                      text: _isExpanded ? 'Close' : 'AI Recap',
+                                      fontSize: 11,
+                                      color: Colors.white,
+                                    ).copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
-// --- WIDGET 2: Side Article Card ---
-
-class _ExpandableSideArticleCard extends StatefulWidget {
+class _ExpandableCompactCard extends StatefulWidget {
   final RssItemModel article;
+  final Color accentColor;
   final bool isArabic;
   final bool isSummaryArabic;
   final String Function(RssItemModel) getDisplayTitle;
-  final bool Function(String) containsArabic;
-  final TextStyle Function(bool, TextStyle) getTextStyle;
   final String Function(RssItemModel) getDisplaySource;
+  final Future<void> Function(String) onLaunchUrl;
 
-  const _ExpandableSideArticleCard({
+  const _ExpandableCompactCard({
     required this.article,
+    required this.accentColor,
     required this.isArabic,
     required this.isSummaryArabic,
     required this.getDisplayTitle,
-    required this.containsArabic,
-    required this.getTextStyle,
     required this.getDisplaySource,
+    required this.onLaunchUrl,
   });
 
   @override
-  State<_ExpandableSideArticleCard> createState() =>
-      _ExpandableSideArticleCardState();
+  State<_ExpandableCompactCard> createState() => _ExpandableCompactCardState();
 }
 
-class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
+class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   bool _isLoading = false;
   String? _summary;
-
   late AnimationController _controller;
   late Animation<double> _iconTurn;
 
@@ -1205,11 +1738,11 @@ class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 250),
       vsync: this,
     );
     _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
   }
 
@@ -1221,13 +1754,11 @@ class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
 
   Future<void> _handleRecap() async {
     if (_isLoading) return;
-
     if (_isExpanded) {
       setState(() => _isExpanded = false);
       _controller.reverse();
       return;
     }
-
     setState(() {
       _isExpanded = true;
       _isLoading = true;
@@ -1241,195 +1772,23 @@ class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
           widget.article.description ?? '',
           isArabic: widget.isSummaryArabic,
         );
-        if (mounted)
+        if (mounted) {
           setState(() {
             _summary = result;
             _isLoading = false;
           });
+        }
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           setState(() {
-            _summary = "Error generating summary.";
+            _summary = "Unable to generate summary.";
             _isLoading = false;
           });
+        }
       }
     } else {
       setState(() => _isLoading = false);
     }
-  }
-
-  // Helper to wrap non-Arabic words in parentheses
-  String _formatSummaryText(String text) {
-    if (!widget.isSummaryArabic) return text;
-
-    final words = text.split(' ');
-    final buffer = StringBuffer();
-
-    for (var word in words) {
-      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
-      if (cleanWord.isNotEmpty && !widget.containsArabic(cleanWord)) {
-        buffer.write('($word) ');
-      } else {
-        buffer.write('$word ');
-      }
-    }
-    return buffer.toString().trim();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool hasArabicContent = widget.containsArabic(widget.article.title);
-    final String displayTitle = widget.getDisplayTitle(widget.article);
-    final bool useArabicStyle = widget.isArabic || hasArabicContent;
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final String displaySource = widget.getDisplaySource(widget.article);
-
-    return GestureDetector(
-      onTap: () => _launchUrl(widget.article.link),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        height: _isExpanded ? (isMobile ? 380 : 400) : (isMobile ? 150 : 152),
-        decoration: BoxDecoration(
-            color: cryptoCardBg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: cryptoGold.withOpacity(0.1))),
-        child: Padding(
-          padding: EdgeInsets.all(isMobile ? 16.0 : 20.0),
-          child: Column(
-            crossAxisAlignment: useArabicStyle
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Text(displaySource.toUpperCase(),
-                      style: GoogleFonts.montserrat(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: cryptoGold)),
-                  const Spacer(),
-                  Icon(Icons.access_time_rounded,
-                      size: 12, color: Colors.white38),
-                  const SizedBox(width: 4),
-                  Text(_formatTimeAgo(widget.article.publishedAt),
-                      style: GoogleFonts.montserrat(
-                          fontSize: 10, color: Colors.white38)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(displayTitle,
-                  style: widget.getTextStyle(
-                      useArabicStyle,
-                      TextStyle(
-                          fontSize: isMobile ? 13 : 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          height: 1.4)),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: useArabicStyle ? TextAlign.right : TextAlign.left),
-              if (!_isExpanded) const Expanded(child: SizedBox()),
-              if (_isExpanded) ...[
-                const SizedBox(height: 12),
-                Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border:
-                            Border.all(color: Colors.white.withOpacity(0.05))),
-                    child: _isLoading
-                        ? const Center(
-                            child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 1.5, color: cryptoGold)))
-                        : Text(
-                            _formatSummaryText(
-                                _summary ?? "Unable to generate summary."),
-                            style: widget.getTextStyle(
-                                useArabicStyle,
-                                TextStyle(
-                                    fontSize: 12,
-                                    color: cryptoGold.withOpacity(0.9),
-                                    height: 1.4,
-                                    fontStyle: FontStyle.italic)),
-                            maxLines: 6,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: useArabicStyle
-                                ? TextAlign.right
-                                : TextAlign.left,
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              Row(
-                children: [
-                  if (!_isExpanded)
-                    Icon(Icons.arrow_right_alt,
-                        size: 16, color: cryptoGold.withOpacity(0.5)),
-                  if (!_isExpanded) const Spacer(),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _handleRecap,
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                                colors: _isExpanded
-                                    ? [Colors.deepPurpleAccent, Colors.purple]
-                                    : [
-                                        cryptoGold.withOpacity(0.8),
-                                        cryptoOrange.withOpacity(0.8)
-                                      ]),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: (_isExpanded
-                                          ? Colors.purple
-                                          : cryptoOrange)
-                                      .withOpacity(0.2),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1))
-                            ]),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            RotationTransition(
-                              turns: _iconTurn,
-                              child: const Icon(Icons.auto_awesome,
-                                  size: 14, color: Colors.white),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _isExpanded ? 'Close' : 'Recap',
-                              style: GoogleFonts.montserrat(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   String _formatTimeAgo(DateTime? date) {
@@ -1443,9 +1802,156 @@ class _ExpandableSideArticleCardState extends State<_ExpandableSideArticleCard>
     return intl.DateFormat('MMM d').format(date);
   }
 
-  Future<void> _launchUrl(String url) async {
-    final Uri uri = Uri.parse(url);
-    if (await canLaunchUrl(uri))
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  @override
+  Widget build(BuildContext context) {
+    final String displayTitle = widget.getDisplayTitle(widget.article);
+    final String displaySource = widget.getDisplaySource(widget.article);
+    final bool useArabicStyle = widget.isArabic;
+
+    return GestureDetector(
+      onTap: () => widget.onLaunchUrl(widget.article.link),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutQuart,
+        margin: const EdgeInsets.only(bottom: 12),
+        height: _isExpanded ? 340 : 130,
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isExpanded
+                ? widget.accentColor.withOpacity(0.4)
+                : AppColors.borderSubtle,
+            width: _isExpanded ? 1.5 : 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: useArabicStyle
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  if (useArabicStyle) const Spacer(),
+                  Text(
+                    displaySource.toUpperCase(),
+                    style: AppFonts.caption(
+                      text: displaySource.toUpperCase(),
+                      fontSize: 10,
+                      color: widget.accentColor,
+                    ).copyWith(letterSpacing: 0.8),
+                  ),
+                  if (!useArabicStyle) const Spacer(),
+                  if (useArabicStyle) const SizedBox(width: 10),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.schedule_rounded,
+                        size: 11,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatTimeAgo(widget.article.publishedAt),
+                        style: AppFonts.caption(
+                          text: _formatTimeAgo(widget.article.publishedAt),
+                          fontSize: 10,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                displayTitle,
+                style: AppFonts.title(
+                  text: displayTitle,
+                  fontSize: 14,
+                  color: Colors.white,
+                ).copyWith(height: 1.4),
+                maxLines: _isExpanded ? 3 : 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: useArabicStyle ? TextAlign.right : TextAlign.left,
+              ),
+              if (_isExpanded) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 160,
+                  child: FullAiRecap(
+                    summary: _summary ?? "Unable to generate summary.",
+                    isArabic: widget.isSummaryArabic,
+                    isLoading: _isLoading,
+                    onClose: () {
+                      setState(() => _isExpanded = false);
+                      _controller.reverse();
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              const Spacer(),
+              Row(
+                children: [
+                  const Spacer(),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _handleRecap,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: _isExpanded
+                                ? [
+                                    AppColors.accentPurple,
+                                    AppColors.accentPurple.withOpacity(0.8),
+                                  ]
+                                : [
+                                    widget.accentColor.withOpacity(0.8),
+                                    widget.accentColor,
+                                  ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RotationTransition(
+                              turns: _iconTurn,
+                              child: const Icon(
+                                Icons.auto_awesome,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _isExpanded ? 'Close' : 'Recap',
+                              style: AppFonts.caption(
+                                text: _isExpanded ? 'Close' : 'Recap',
+                                fontSize: 10,
+                                color: Colors.white,
+                              ).copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
