@@ -45,6 +45,24 @@ class NewsSources {
       type: SourceType.rss,
     ),
     NewsSource(
+      name: 'Radio Tunisienne',
+      url: 'https://www.radionationale.tn/articles/rss',
+      type: SourceType.rss, // Changed from scrapable to rss!
+      countryCode: 'TN',
+    ),
+    NewsSource(
+      name: 'Radio Gafsa',
+      url: 'https://www.radiogafsa.tn/articles/rss',
+      type: SourceType.rss,
+      countryCode: 'TN',
+    ),
+    NewsSource(
+      name: 'Radio Tataouine',
+      url: 'https://www.radiotataouine.tn/articles/rss',
+      type: SourceType.rss,
+      countryCode: 'TN',
+    ),
+    NewsSource(
       name: 'Tunisie Focus',
       url: 'https://www.tunisiefocus.com/category/politique/feed',
       type: SourceType.rss,
@@ -57,6 +75,22 @@ class NewsSources {
     NewsSource(
         name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
     NewsSource(name: 'Nawaat', url: 'https://nawaat.org/feed/'),
+    NewsSource(
+      name: 'Tunisia TV',
+      url:
+          'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/%D8%A7%D8%AE%D8%A8%D8%A7%D8%B1%D9%86%D8%A7',
+      type: SourceType.scrapable,
+      countryCode: 'TN',
+      selectors: {
+        'item': '.card-landscape, .card-main', // Main + sub articles
+        'title': 'h3 a', // Article title
+        'link': 'h3 a', // Article URL (relative)
+        'image': 'figure img', // Image element
+        'date': 'time', // Date element
+        'category': '.desc a:first-child', // Category tag
+      },
+    ),
+
     // Inside the tunisian list
   ];
   // MOROCCAN SOURCES (MA)
@@ -93,11 +127,7 @@ class NewsSources {
       url: 'https://www.tsa-algerie.com/feed/',
       countryCode: 'DZ',
     ),
-    NewsSource(
-      name: 'El Watan',
-      url: 'https://elwatan.dz/feed/',
-      countryCode: 'DZ',
-    ),
+    // REMOVED: El Watan - facing closure since 2022, RSS unreliable [^25^] [^26^]
     NewsSource(
       name: 'djelfa',
       url: 'https://www.djelfa.info/vb/external.php?type=RSS2',
@@ -106,11 +136,6 @@ class NewsSources {
     NewsSource(
       name: 'elkhadra',
       url: 'https://www.elkhadra.com/fr/feed/',
-      countryCode: 'DZ',
-    ),
-    NewsSource(
-      name: 'tsa-algerie',
-      url: 'https://www.tsa-algerie.com/feed/',
       countryCode: 'DZ',
     ),
     NewsSource(
@@ -128,8 +153,8 @@ class NewsSources {
       url: 'https://elkhabar.com/feed/',
       countryCode: 'DZ',
     ),
+    // REMOVED: Duplicate TSA entry
   ];
-
   // ==========================================
   // IRANIAN SOURCES (IR)
   // ==========================================

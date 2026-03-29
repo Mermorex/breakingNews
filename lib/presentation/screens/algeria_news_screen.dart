@@ -277,7 +277,7 @@ class FullAiRecap extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.auto_awesome,
                           size: 14,
                           color: AppColors.accentPurple,
@@ -303,7 +303,7 @@ class FullAiRecap extends StatelessWidget {
                         color: Colors.white.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.close,
                         size: 16,
                         color: AppColors.textMuted,

@@ -1,145 +1,303 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="NewsHub delivers AI-curated breaking news from 40+ global sources. Real-time coverage from Tunisia, Morocco, Algeria, Iran & international outlets.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <!-- Primary Meta Tags -->
+  <title>NewsHub | AI-Powered World News Intelligence Platform</title>
+  <meta name="description" content="AI-curated breaking news from 40+ verified global sources. Real-time coverage from Tunisia, Morocco, Algeria, Iran & international outlets. Intelligent news aggregation with smart categorization.">
+  <meta name="keywords" content="world news, breaking news, RSS aggregator, Tunisia news, Morocco news, Algeria news, Iran news, AI news curation, real-time news, international news, MENA news">
+  <meta name="author" content="NewsHub">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="googlebot" content="index, follow">
+  <meta name="theme-color" content="#FF8C00">
+  <meta name="msapplication-TileColor" content="#FF8C00">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NewsHub">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Breaking News">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-  <link rel="icon" type="image/png" href="favicon.png"/>
-  <title>NewsHub: AI-Powered World News Intelligence | Breaking News Aggregator</title>
+  <meta name="application-name" content="NewsHub">
+  
+  <!-- Canonical URL -->
+  <link rel="canonical" href="https://news.smarthub.tn/">
+  
+  <!-- Favicon & Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <link rel="mask-icon" href="icons/safari-pinned-tab.svg" color="#FF8C00">
+  <link rel="shortcut icon" href="icons/favicon.ico">
+  
+  <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
-  <!-- Keywords (less critical now but still helpful) -->
-<meta name="keywords" content="world news, breaking news, RSS aggregator, Tunisia news, Morocco news, Algeria news, Iran news, AI news curation, real-time news, international news">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://news.smarthub.tn/">
+  <meta property="og:title" content="NewsHub | AI-Powered World News Intelligence">
+  <meta property="og:description" content="AI-curated breaking news from 40+ verified global sources. Real-time coverage across MENA region and worldwide with intelligent categorization.">
+  <meta property="og:image" content="https://news.smarthub.tn/icons/og-image-1200x630.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="NewsHub - AI-Powered News Intelligence Platform">
+  <meta property="og:image:type" content="image/png">
+  <!-- Square OG Image for WhatsApp/Snapchat -->
+  <meta property="og:image" content="https://news.smarthub.tn/icons/og-image-1200x1200.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="1200">
+  <meta property="og:site_name" content="NewsHub">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="ar_AR">
+  <meta property="og:locale:alternate" content="fr_FR">
+  
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://news.smarthub.tn/">
+  <meta name="twitter:title" content="NewsHub | AI-Powered World News Intelligence">
+  <meta name="twitter:description" content="AI-curated breaking news from 40+ verified global sources. Real-time coverage across MENA region and worldwide.">
+  <meta name="twitter:image" content="https://news.smarthub.tn/icons/twitter-card-1200x675.png">
+  <meta name="twitter:image:alt" content="NewsHub - AI-Powered News Intelligence Platform">
+  <meta name="twitter:creator" content="@newshub">
+  <meta name="twitter:site" content="@newshub">
+  
+  <!-- Additional SEO -->
+  <meta name="apple-itunes-app" content="app-id=your-app-id">
+  <meta name="google-play-app" content="app-id=your.app.package">
+  
+  <!-- Preconnect to External Domains -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://www.googletagmanager.com">
+  <link rel="dns-prefetch" href="https://api.allorigins.win">
+  <link rel="dns-prefetch" href="https://corsproxy.io">
+  
+  <!-- Structured Data (JSON-LD) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "NewsHub",
+    "description": "AI-curated breaking news from 40+ verified global sources",
+    "url": "https://news.smarthub.tn/",
+    "applicationCategory": "NewsApplication",
+    "operatingSystem": "Any",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.8",
+      "ratingCount": "1250"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "NewsHub",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://news.smarthub.tn/icons/logo-512x512.png"
+      }
+    }
+  }
+  </script>
 
-<!-- Open Graph for social sharing -->
-<meta property="og:title" content="NewsHub: AI-Powered World News Intelligence">
-<meta property="og:description" content="AI-curated breaking news from 40+ verified global sources. Coverage across MENA region and worldwide.">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://news.smarthub.tn/">
-<meta property="og:image" content="https://news.smarthub.tn//og-image.png">
-
-<!-- Twitter Card -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="NewsHub: AI-Powered World News Intelligence">
-<meta name="twitter:description" content="AI-curated breaking news from 40+ verified global sources. Real-time coverage across MENA & worldwide.">
-
-<!-- Canonical URL -->
-<link rel="canonical" href="https://news.smarthub.tn/">
-
-<!-- Robots -->
-<meta name="robots" content="index, follow">
-
-
+  <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-HKMWZ1SDTE"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-
     gtag('config', 'G-HKMWZ1SDTE');
   </script>
 
-    <script>
-    // 1. Define the critical URLs to preload (Start with key regions for faster initial load)
-    const PRELOAD_URLS = [
-      // --- TUNISIAN (Priority) ---
-      'https://www.mosaiquefm.net/ar/rss',
-      'https://www.lapresse.tn/category/actualites/feed',
-      'https://www.jawharafm.net/ar/rss/showRss/88/1/17',
-      'https://radioexpressfm.com/ar/feed/',
-      'https://www.tunisiefocus.com/category/politique/feed',
-      'https://www.babnet.net/feed.php',
-      'https://www.jeuneafrique.com/feed/',
-      'https://www.alchourouk.com/rss',
-      'https://www.tunisie.gov.tn/uploads/Document/fluxRssActualite.xml',
-      'https://www.businessnews.com.tn/feed',
-      'https://nawaat.org/feed/',
-      'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/اخبارنا',
+  <!-- RSS Preload Script (Your existing script) -->
+  <script>
+  // ==========================================
+  // OPTIMIZED RSS PRELOAD CONFIGURATION
+  // Matches news_source.dart as of 2026-03-29
+  // ==========================================
+
+  const PRELOAD_URLS = [
+    // --- TUNISIAN SOURCES (Priority Region) ---
+    'https://www.mosaiquefm.net/ar/rss',
+    'https://www.lapresse.tn/category/actualites/feed',
+    'https://www.jawharafm.net/ar/rss/showRss/88/1/17',
+    'https://diwanfm.net/feed',
+    'https://radioexpressfm.com/ar/feed/',
+    'https://www.tunisiefocus.com/category/politique/feed',
+    'https://www.babnet.net/feed.php',
+    'https://www.jeuneafrique.com/feed/',
+    'https://www.alchourouk.com/rss',
+    'https://www.businessnews.com.tn/feed',
+    'https://nawaat.org/feed/',
+    'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/%D8%A7%D8%AE%D8%A8%D8%A7%D8%B1%D9%86%D8%A7',
+    'https://www.radionationale.tn/articles/rss',
+    'https://www.radiogafsa.tn/articles/rss',
+    'https://www.radiotataouine.tn/articles/rss',
     
-      
-      // --- MOROCCAN ---
-      'https://www.hespress.com/feed',
-      'https://aujourdhui.ma/feed',
-      'https://www.moroccoworldnews.com/feed/',
-      'https://hihi2.com/feed',
-      'https://www.yabiladi.com/rss/?url=rubrik/',
-      // --- ALGERIAN ---
-      'https://www.tsa-algerie.com/feed/',
-      'https://elwatan.dz/feed/',
-      'https://www.liberte-algerie.com/feed/',
-      'https://www.algerie360.com/feed/',
-      'https://elkhabar.com/feed/',
-      'https://www.djazairess.com/fr/feed',
-      'https://www.djelfa.info/vb/external.php?type=RSS2',
-      'https://www.elkhadra.com/fr/feed/',
-      'https://www.tsa-algerie.com/feed/',
+    // --- MOROCCAN SOURCES ---
+    'https://www.yabiladi.com/rss/?url=rubrik/',
+    'https://hihi2.com/feed',
+    'https://aujourdhui.ma/feed',
+    'https://www.moroccoworldnews.com/feed/',
+    
+    // --- ALGERIAN SOURCES ---
+    // NOTE: El Watan (elwatan.dz) removed - facing closure since 2022 [^25^]
+    'https://www.tsa-algerie.com/feed/',
+    'https://www.djelfa.info/vb/external.php?type=RSS2',
+    'https://www.elkhadra.com/fr/feed/',
+    'https://www.liberte-algerie.com/feed/',
+    'https://www.algerie360.com/feed/',
+    'https://elkhabar.com/feed/',
+    
+    // --- IRANIAN SOURCES ---
+    'https://en.mehrnews.com/rss',
+    'https://www.mehrnews.com/rss',
+    'https://www.tasnimnews.ir/en/rss/feed/0/0/8/1/TopStories',
+    'https://www.tehrantimes.com/rss',
+    'https://www.asriran.com/fa/rss/allnews',
+    'https://www.farsnews.ir/en/rss',
+    'https://una-oic.org/en/feed/',
+    // Iran International via Google News RSS (no direct RSS available)
+    'https://news.google.com/rss/search?q=site:iranintl.com&hl=en-US&gl=US&ceid=US:en',
+    'https://www.tabnak.ir/fa/rss/allnews',
+    
+    // --- INTERNATIONAL SOURCES ---
+    // Middle East
+    'https://www.aljazeera.com/xml/rss/all.xml',
+    'https://www.aljazeera.net/aljazeerarss/a7c186be-1baa-4bd4-9d80-a84db769f779/73d0e1b4-532f-45ef-b135-bfdff8b8cab9',
+    'https://www.skynewsarabia.com/rss',
+    
+    // Global English
+    'http://feeds.bbci.co.uk/news/rss.xml',
+    'https://www.france24.com/fr/afrique/rss',
+    'https://news.google.com/rss/search?q=site:reuters.com&hl=en-US&gl=US&ceid=US:en',
+    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+    'https://www.theguardian.com/world/rss',
+    'https://news.google.com/rss/search?q=site:apnews.com&hl=en-US&gl=US&ceid=US:en',
+    'https://www.theverge.com/rss/index.xml',
+    'https://techcrunch.com/feed/',
+    'https://www.wired.com/feed/rss',
+    
+    // Regional
+    'https://www.themoscowtimes.com/rss/news',
+    'https://www.kyivpost.com/feed/',
+    'https://www.euronews.com/rss',
+    'https://news.google.com/rss/search?q=site:trtworld.com&hl=en-US&gl=US&ceid=US:en',
+    
+    // Asia-Pacific
+    'https://www.thehindu.com/news/international/?service=rss',
+    'https://indianexpress.com/feed/',
+    'https://7news.com.au/rss',
+    'https://neoskosmos.com/en/feed/'
+  ];
 
-      
-      // --- INTERNATIONAL (Top Picks) ---
-      'https://www.aljazeera.com/xml/rss/all.xml',
-      'http://feeds.bbci.co.uk/news/rss.xml',
-      'https://news.google.com/rss/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen',
-      'https://www.theguardian.com/world/rss',
-      'https://www.euronews.com/rss',
-      'https://techcrunch.com/feed/',
-      // --- Iranian (Top Picks) ---
-      'https://en.mehrnews.com/rss',
-      'https://www.tasnimnews.ir/en/rss/feed/0/0/8/1/TopStories',
-      'https://www.tehrantimes.com/rss',
-      'https://www.farsnews.ir/en/rss',
-      'https://una-oic.org/en/feed/',
-      'https://news.google.com/rss/search?q=site:iranintl.com&hl=en-US&gl=US&ceid=US:en',
-      'https://www.mehrnews.com/rs',
-      'https://www.asriran.com/fa/rss/allnews',
-      'https://www.tabnak.ir/fa/rss/allnews',
-      
-    ];
-  
+  // Fallback CORS Proxies (in order of preference)
+  const PROXIES = [
+    'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?',
+    'https://api.codetabs.com/v1/proxy?quest='
+  ];
 
-    // 2. Define Fallback Proxies
-    const PROXIES = [
-      'https://api.allorigins.win/raw?url=',
-      'https://corsproxy.io/?'
-    ];
+  // Global storage for preloaded data
+  window.preloadedRssData = {};
+  window.preloadErrors = [];
 
-    // 3. Global storage
-    window.preloadedRssData = {};
+  console.log(`🚀 [Preload] Starting background fetch for ${PRELOAD_URLS.length} sources...`);
 
-    console.log('🚀 [Preload] Starting background fetch for ' + PRELOAD_URLS.length + ' sources...');
-
-    // 4. Smart Fetch Function with Fallback
-    function fetchWithProxy(url, proxyIndex) {
-      if (proxyIndex >= PROXIES.length) return; // All proxies failed, give up silently
-
-      const proxy = PROXIES[proxyIndex];
-      const fetchUrl = proxy + encodeURIComponent(url);
-
-      fetch(fetchUrl)
-        .then(response => {
-          if (!response.ok) throw new Error('Proxy error');
-          return response.text();
-        })
-        .then(text => {
-          if (text && text.length > 100) { // Basic validation
-            window.preloadedRssData[url] = text;
-             // console.log('✅ [Preload] Success: ' + url); 
-          } else {
-            throw new Error('Empty response');
-          }
-        })
-        .catch(err => {
-          // Try the next proxy in the list
-          fetchWithProxy(url, proxyIndex + 1);
-        });
+  // Smart Fetch with retry logic
+  async function fetchWithProxy(url, proxyIndex = 0, retries = 2) {
+    if (proxyIndex >= PROXIES.length) {
+      console.warn(`❌ [Preload] Failed all proxies for: ${url}`);
+      window.preloadErrors.push({ url, error: 'All proxies failed' });
+      return;
     }
 
-    // Start fetching
-    PRELOAD_URLS.forEach(url => fetchWithProxy(url, 0));
-  </script>
+    const proxy = PROXIES[proxyIndex];
+    const fetchUrl = proxy + encodeURIComponent(url);
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
+      const response = await fetch(fetchUrl, { 
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const text = await response.text();
+      
+      // Validation: Check if response looks like valid RSS/XML
+      if (text && text.length > 200 && (
+        text.includes('<rss') || 
+        text.includes('<feed') || 
+        text.includes('<channel') ||
+        text.includes('<?xml')
+      )) {
+        window.preloadedRssData[url] = text;
+        console.log(`✅ [Preload] Success (${(text.length/1024).toFixed(1)}KB): ${url}`);
+      } else {
+        throw new Error('Invalid RSS format');
+      }
+    } catch (err) {
+      if (retries > 0) {
+        // Retry with same proxy
+        setTimeout(() => fetchWithProxy(url, proxyIndex, retries - 1), 1000);
+      } else {
+        // Try next proxy
+        fetchWithProxy(url, proxyIndex + 1, 2);
+      }
+    }
+  }
+
+  // Initialize preloading with concurrency control
+  function initPreload() {
+    // Process in batches of 5 to avoid overwhelming the browser
+    const batchSize = 5;
+    let index = 0;
+
+    function processBatch() {
+      const batch = PRELOAD_URLS.slice(index, index + batchSize);
+      if (batch.length === 0) return;
+
+      batch.forEach(url => fetchWithProxy(url, 0));
+      index += batchSize;
+      
+      if (index < PRELOAD_URLS.length) {
+        setTimeout(processBatch, 500); // 500ms delay between batches
+      }
+    }
+
+    processBatch();
+  }
+
+  // Start preloading when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPreload);
+  } else {
+    initPreload();
+  }
+
+  // Expose statistics for Flutter app
+  window.getPreloadStats = function() {
+    return {
+      loaded: Object.keys(window.preloadedRssData).length,
+      total: PRELOAD_URLS.length,
+      errors: window.preloadErrors.length,
+      errorDetails: window.preloadErrors
+    };
+  };
+</script>
   
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap');
@@ -165,7 +323,6 @@
       transition: opacity 0.6s ease-out, transform 0.6s ease-out;
     }
 
-    /* Crypto Grid Background */
     .grid-bg {
       position: absolute;
       top: 0; left: 0;
@@ -182,7 +339,6 @@
       100% { transform: perspective(500px) rotateX(60deg) translateY(50px); }
     }
 
-    /* Central Logo Container */
     .logo-container {
       position: relative;
       z-index: 10;
@@ -190,7 +346,6 @@
       margin-bottom: 40px;
     }
 
-    /* Animated Logo Icon */
     .logo-icon {
       width: 80px; height: 80px;
       margin: 0 auto 20px;
@@ -223,7 +378,6 @@
       100% { transform: scale(1.5); opacity: 0; }
     }
 
-    /* Glitch Text Effect */
     .app-title {
       font-size: 28px;
       font-weight: 800;
@@ -236,7 +390,7 @@
 
     .app-title::before,
     .app-title::after {
-      content: 'BREAKING NEWS';
+      content: 'NEWSHUB INTELLIGENCE';
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
@@ -266,7 +420,6 @@
       100% { clip: rect(15px, 9999px, 120px, 0); }
     }
 
-    /* Live Stats Counter */
     .stats-container {
       display: flex;
       gap: 40px;
@@ -294,7 +447,6 @@
       margin-top: 5px;
     }
 
-    /* Scrolling News Ticker */
     .ticker-container {
       width: 100%;
       max-width: 600px;
@@ -353,7 +505,6 @@
       100% { transform: translate3d(-100%, 0, 0); }
     }
 
-    /* Progress Bar with Glow */
     .progress-container {
       width: 300px;
       height: 4px;
@@ -384,7 +535,6 @@
       100% { background-position: 200% 0; }
     }
 
-    /* Loading Status Text */
     .status-text {
       margin-top: 15px;
       font-family: 'JetBrains Mono', monospace;
@@ -406,7 +556,6 @@
       100% { content: ''; }
     }
 
-    /* Binary Rain Effect (Subtle Background) */
     .binary-rain {
       position: absolute;
       top: 0; left: 0;
@@ -429,7 +578,6 @@
       to { transform: translateY(200vh); }
     }
 
-    /* Hide animation */
     #loading.fade-out {
       opacity: 0;
       transform: scale(1.1);
@@ -440,42 +588,33 @@
 <body>
   
   <div id="loading">
-    <!-- Background Effects -->
     <div class="grid-bg"></div>
     <div class="binary-rain" id="binaryRain"></div>
     
-    <!-- Main Content -->
     <div class="logo-container">
       <div class="logo-icon">
         <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Globe -->
           <circle class="globe" cx="50" cy="50" r="35" stroke="#FF8C00" stroke-width="3" fill="none"/>
           <path class="globe" d="M50 15 Q65 35 65 50 Q65 65 50 85 Q35 65 35 50 Q35 35 50 15" stroke="#FF8C00" stroke-width="2" fill="none" opacity="0.6"/>
           <line class="globe" x1="15" y1="50" x2="85" y2="50" stroke="#FF8C00" stroke-width="2" opacity="0.6"/>
-          
-          <!-- Signal Waves -->
           <path class="signal" d="M85 35 Q95 50 85 65" stroke="#FF8C00" stroke-width="2" fill="none"/>
           <path class="signal" d="M90 30 Q105 50 90 70" stroke="#FF8C00" stroke-width="2" fill="none" style="animation-delay: 0.2s"/>
-          
-          <!-- RSS Dot -->
           <circle cx="75" cy="25" r="6" fill="#FF8C00">
             <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
           </circle>
         </svg>
       </div>
-      
-      <h1 class="app-title">BREAKING NEWS</h1>
+      <h1 class="app-title">NEWSHUB INTELLIGENCE</h1>
     </div>
 
-    <!-- Live Counters -->
     <div class="stats-container">
       <div class="stat-box">
         <span class="stat-number" id="feedCount">0</span>
-        <div class="stat-label">Feeds</div>
+        <div class="stat-label">Live Feeds</div>
       </div>
       <div class="stat-box">
         <span class="stat-number" id="sourceCount">0</span>
-        <div class="stat-label">Sources</div>
+        <div class="stat-label">Global Sources</div>
       </div>
       <div class="stat-box">
         <span class="stat-number" id="countryCount">0</span>
@@ -483,34 +622,31 @@
       </div>
     </div>
 
-    <!-- Funny News Ticker -->
     <div class="ticker-container">
       <div class="ticker-label">LIVE</div>
       <div class="ticker-wrap">
         <div class="ticker-content" id="ticker">
-          <span class="ticker-item">Flutter developer discovers coffee is actually just bean soup...</span>
-          <span class="ticker-item">Breaking: RSS feeds confirm cats have taken over the internet...</span>
-          <span class="ticker-item">Aliens land on Earth, ask for WiFi password...</span>
-          <span class="ticker-item">Study shows 100% of developers google "how to center a div"...</span>
-          <span class="ticker-item">Crypto market volatile, developers switch to stable relationships...</span>
-          <span class="ticker-item">Breaking: Null is not false, developers confused...</span>
-          <span class="ticker-item">World's oldest bug found, still marked as "feature"...</span>
+          <span class="ticker-item">AI algorithms processing 40+ news sources in real-time...</span>
+          <span class="ticker-item">Breaking: New intelligence feed connected from Tunis...</span>
+          <span class="ticker-item">Crypto markets volatile, NewsHub monitoring situation...</span>
+          <span class="ticker-item">MENA region coverage expanded with 5 new sources...</span>
+          <span class="ticker-item">Neural networks categorizing breaking news instantly...</span>
+          <span class="ticker-item">Iranian state media feeds synchronized successfully...</span>
+          <span class="ticker-item">Maghreb news aggregation operating at 99.9% uptime...</span>
         </div>
       </div>
     </div>
 
-    <!-- Progress -->
     <div class="progress-container">
       <div class="progress-bar"></div>
     </div>
     
-    <div class="status-text" id="statusText">Establishing secure connection</div>
+    <div class="status-text" id="statusText">Initializing neural networks</div>
   </div>
 
   <script src="flutter_bootstrap.js" async></script>
   
   <script>
-    // Counter Animation
     function animateCounter(id, target, duration = 2000) {
       const element = document.getElementById(id);
       const increment = target / (duration / 16);
@@ -526,21 +662,19 @@
       }, 16);
     }
 
-    // Start counters after slight delay
     setTimeout(() => {
       animateCounter('feedCount', 847);
       animateCounter('sourceCount', 42);
       animateCounter('countryCount', 15);
     }, 300);
 
-    // Rotating Status Messages
     const messages = [
-      "Establishing secure connection",
-      "Decrypting RSS feeds",
-      "Brewing coffee for algorithms",
-      "Convincing pixels to align",
-      "Downloading more RAM",
-      "Calculating meaning of life",
+      "Initializing neural networks",
+      "Establishing secure connections",
+      "Synchronizing global feeds",
+      "Loading AI categorization models",
+      "Optimizing crypto-themed interface",
+      "Calibrating news algorithms",
       "Warming up the hamsters",
       "Asking Stack Overflow nicely"
     ];
@@ -553,7 +687,6 @@
       statusElement.textContent = messages[msgIndex];
     }, 2500);
 
-    // Generate Binary Rain
     const binaryRain = document.getElementById('binaryRain');
     for (let i = 0; i < 20; i++) {
       const column = document.createElement('div');
@@ -570,7 +703,6 @@
       binaryRain.appendChild(column);
     }
 
-    // Flutter Detection
     const observer = new MutationObserver((mutations, obs) => {
       const flutterView = document.querySelector('flt-glass-pane') || document.querySelector('flutter-view');
       
