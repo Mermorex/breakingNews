@@ -75,21 +75,6 @@ class NewsSources {
     NewsSource(
         name: 'Business News', url: 'https://www.businessnews.com.tn/feed'),
     NewsSource(name: 'Nawaat', url: 'https://nawaat.org/feed/'),
-    NewsSource(
-      name: 'Tunisia TV',
-      url:
-          'https://www.tunisiatv.tn/ar/articles/1/693ff922b922dd47f3ea53c3/%D8%A7%D8%AE%D8%A8%D8%A7%D8%B1%D9%86%D8%A7',
-      type: SourceType.scrapable,
-      countryCode: 'TN',
-      selectors: {
-        'item': '.card-landscape, .card-main', // Main + sub articles
-        'title': 'h3 a', // Article title
-        'link': 'h3 a', // Article URL (relative)
-        'image': 'figure img', // Image element
-        'date': 'time', // Date element
-        'category': '.desc a:first-child', // Category tag
-      },
-    ),
 
     // Inside the tunisian list
   ];
@@ -114,6 +99,11 @@ class NewsSources {
     NewsSource(
       name: 'Morocco World News',
       url: 'https://www.moroccoworldnews.com/feed/',
+      countryCode: 'MA',
+    ),
+    NewsSource(
+      name: 'hespress',
+      url: 'https://www.hespress.com/feed',
       countryCode: 'MA',
     ),
   ];
@@ -151,6 +141,11 @@ class NewsSources {
     NewsSource(
       name: 'El Khabar',
       url: 'https://elkhabar.com/feed/',
+      countryCode: 'DZ',
+    ),
+    NewsSource(
+      name: 'radioalgerie',
+      url: 'https://radioalgerie.dz/news/fr/category/41/rss.xml',
       countryCode: 'DZ',
     ),
     // REMOVED: Duplicate TSA entry
