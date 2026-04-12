@@ -29,6 +29,8 @@ class HomeController extends ChangeNotifier {
       DashboardConstants.internationalFeatured;
   List<NewsSource> get algerianFeatured => DashboardConstants.algerianFeatured;
   List<NewsSource> get iranianFeatured => DashboardConstants.iranianFeatured;
+  List<NewsSource> get frenchFeatured =>
+      DashboardConstants.frenchFeatured; // ADDED
 
   // Article Getters
   List<RssItemModel> getTunisianArticles() => _getArticlesByRegion('TN');
@@ -72,7 +74,6 @@ class HomeController extends ChangeNotifier {
     }
 
     // 2. Create a list of tasks (Futures)
-    // We iterate over the strongly typed NewsSource lists
     final List<Future> tasks = [];
 
     // Helper to add tasks to the list
@@ -80,9 +81,7 @@ class HomeController extends ChangeNotifier {
       for (final source in sources) {
         tasks.add(
           _fetchSourceData(source, regionCode).then((_) {
-            // ✅ MAGIC HAPPENS HERE:
             // As soon as ONE task finishes, turn off the initial loading spinner
-            // so the UI renders the dashboard immediately.
             if (_isLoading) {
               _isLoading = false;
               notifyListeners();
@@ -100,6 +99,7 @@ class HomeController extends ChangeNotifier {
     addFetchTasks(algerianFeatured, 'DZ');
     addFetchTasks(iranianFeatured, 'IR');
     addFetchTasks(internationalFeatured, 'INT');
+    addFetchTasks(frenchFeatured, 'FR'); // ADDED - French sources
 
     // 3. Run all tasks in parallel
     await Future.wait(tasks);

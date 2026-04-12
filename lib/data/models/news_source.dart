@@ -150,6 +150,72 @@ class NewsSources {
     ),
     // REMOVED: Duplicate TSA entry
   ];
+
+  // FRENCH SOURCES (FR)
+// ==========================================
+  static final List<NewsSource> french = [
+    NewsSource(
+      name: 'Le Monde',
+      url: 'https://www.lemonde.fr/rss/une.xml',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'Le Figaro',
+      url: 'https://www.lefigaro.fr/rss/figaro_actualites.xml',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'Libération',
+      url:
+          'https://www.liberation.fr/arc/outboundfeeds/rss-all/?outputType=xml',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'France 24',
+      url: 'https://www.france24.com/fr/rss',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'RFI',
+      url: 'https://www.rfi.fr/fr/rss',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'BFM TV',
+      url: 'https://www.bfmtv.com/rss/news-24-7/',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'Le Parisien',
+      url: 'https://www.leparisien.fr/arc/outboundfeeds/rss/?outputType=xml',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'L\'Express',
+      url: 'https://www.lexpress.fr/arc/outboundfeeds/rss/?outputType=xml',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'France Info',
+      url: 'https://www.francetvinfo.fr/titres.rss',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: '20 Minutes',
+      url: 'https://www.20minutes.fr/feeds/rss-une.xml',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'Ouest-France',
+      url: 'https://www.ouest-france.fr/rss/une',
+      countryCode: 'FR',
+    ),
+    NewsSource(
+      name: 'La Dépêche',
+      url: 'https://www.ladepeche.fr/rss.xml',
+      countryCode: 'FR',
+    ),
+  ];
   // ==========================================
   // IRANIAN SOURCES (IR)
   // ==========================================

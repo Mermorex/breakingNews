@@ -6,21 +6,23 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
 import 'package:news_app/core/utils/responsive.dart';
-// REMOVED: import 'package:news_app/core/constants/dashboard_constants.dart';
-import 'package:news_app/data/models/news_source.dart'; // ADDED: Direct access to sources
+import 'package:news_app/data/datasources/rss_remote_datasource.dart';
 import 'package:news_app/data/grok_service.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
+import 'package:news_app/data/models/news_source.dart';
+import 'package:news_app/presentation/screens/source_detail_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:html' as html;
 
-// --- REFINED COLOR PALETTE ---
-class AppColors {
+// --- FRENCH COLOR PALETTE (Blue/White/Red theme) ---
+class FrenchAppColors {
   static const Color bgDark = Color(0xFF0B0E14);
   static const Color cardBg = Color(0xFF151A25);
   static const Color cardBgElevated = Color(0xFF1E2532);
-  static const Color accentOrange = Color(0xFFFF8C00);
-  static const Color accentGold = Color(0xFFFFD700);
-  static const Color accentEmerald = Color(0xFF10B981);
+  static const Color accentBlue = Color(0xFF0055A4); // French Blue
+  static const Color accentRed = Color(0xFFEF4135); // French Red
+  static const Color accentWhite = Color(0xFFFFFFFF); // French White
+  static const Color accentGold = Color(0xFFFFD700); // Keep gold for highlights
   static const Color accentPurple = Color(0xFF8B5CF6);
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFFA0AEC0);
@@ -28,7 +30,7 @@ class AppColors {
   static const Color borderSubtle = Color(0xFF2D3748);
 }
 
-// --- UNIFIED FONT HELPER ---
+// --- UNIFIED FONT HELPER (Same as Tunisian) ---
 class AppFonts {
   static bool containsArabic(String text) {
     return RegExp(
@@ -46,7 +48,6 @@ class AppFonts {
     bool forceArabic = false,
   }) {
     final bool isArabic = forceArabic || (text != null && containsArabic(text));
-
     if (isArabic) {
       return GoogleFonts.notoKufiArabic(
         fontSize: fontSize,
@@ -56,7 +57,6 @@ class AppFonts {
         letterSpacing: letterSpacing,
       );
     }
-
     return GoogleFonts.inter(
       fontSize: fontSize,
       fontWeight: fontWeight,
@@ -114,7 +114,7 @@ class AppFonts {
   }
 }
 
-// --- ENHANCED SOURCE EXTRACTOR ---
+// --- ENHANCED SOURCE EXTRACTOR (Extended for French sources) ---
 class SourceExtractor {
   static final Map<String, String> _domainMappings = {
     'mosaiquefm': 'Mosaïque FM',
@@ -124,48 +124,25 @@ class SourceExtractor {
     'radioexpressfm': 'Express FM',
     'tunisiefocus': 'Tunisie Focus',
     'babnet': 'Babnet',
-    'jeuneafrique': 'Jeune Afrique',
-    'alchourouk': 'Al Chourouk',
     'businessnews': 'Business News',
     'nawaat': 'Nawaat',
     'yabiladi': 'Yabiladi',
-    'hihi2': 'Hihi2',
-    'aujourdhui': 'Aujourd\'hui le Maroc',
-    'moroccoworldnews': 'Morocco World News',
-    'tsa-algerie': 'TSA',
-    'elwatan': 'El Watan',
-    'djelfa': 'Djelfa',
-    'elkhadra': 'El Khadra',
-    'liberte-algerie': 'Liberté',
-    'algerie360': 'Algérie 360',
-    'elkhabar': 'El Khabar',
-    'mehrnews': 'Mehr News',
-    'tasnimnews': 'Tasnim',
-    'tehrantimes': 'Tehran Times',
-    'asriran': 'Asriran',
-    'farsnews': 'Fars News',
-    'una-oic': 'UNA-OIC',
-    'iranintl': 'Iran International',
-    'tabnak': 'Tabnak',
-    'aljazeera': 'Al Jazeera',
-    'skynewsarabia': 'Sky News Arabia',
-    'bbc': 'BBC',
+    'alchourouk': 'Al Chourouk',
+    // French sources
+    'lemonde': 'Le Monde',
+    'lefigaro': 'Le Figaro',
+    'liberation': 'Libération',
     'france24': 'France 24',
-    'reuters': 'Reuters',
-    'nytimes': 'NYT',
-    'theguardian': 'The Guardian',
-    'apnews': 'AP News',
-    'theverge': 'The Verge',
-    'techcrunch': 'TechCrunch',
-    'wired': 'Wired',
-    'themoscowtimes': 'The Moscow Times',
-    'kyivpost': 'Kyiv Post',
-    'euronews': 'Euronews',
-    'trtworld': 'TRT World',
-    'thehindu': 'The Hindu',
-    'indianexpress': 'Indian Express',
-    '7news': '7News Australia',
-    'neoskosmos': 'Neos Kosmos',
+    'rfi': 'RFI',
+    'bfmtv': 'BFM TV',
+    'leparisien': 'Le Parisien',
+    'lexpress': 'L\'Express',
+    'franceinfo': 'France Info',
+    '20minutes': '20 Minutes',
+    'ouest-france': 'Ouest-France',
+    'ladepeche': 'La Dépêche',
+    'nicematin': 'Nice Matin',
+    'lamarseillaise': 'La Marseillaise',
   };
 
   static String extractSource(String? rssSource, String articleUrl) {
@@ -179,68 +156,27 @@ class SourceExtractor {
   }
 
   static bool _isGenericName(String name) {
-    final genericNames = [
-      'world news',
-      'tunisia feed',
-      'morocco feed',
-      'algeria feed',
-      'iran feed',
-      'news',
-      'feed',
-      'articles',
-      'unknown',
-      'rss',
-      'xml',
-      'feedburner'
-    ];
+    final genericNames = ['world news', 'news', 'feed', 'articles', 'unknown'];
     return genericNames.any((generic) => name.toLowerCase().contains(generic));
   }
 
   static String _cleanSourceName(String name) {
-    String clean = name
+    return name
         .replaceAll(RegExp(r'\s*-\s*.*$'), '')
         .replaceAll(RegExp(r'\s*\|.*$'), '')
-        .replaceAll(RegExp(r'\s*RSS.*$', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\s*Feed.*$', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\s*News.*$', caseSensitive: false), '')
         .trim();
-
-    for (final entry in _domainMappings.entries) {
-      if (clean.toLowerCase().contains(entry.key.toLowerCase())) {
-        return entry.value;
-      }
-    }
-    return clean;
   }
 
   static String _extractFromUrl(String url) {
     try {
       final uri = Uri.parse(url);
-      String host = uri.host.toLowerCase();
-      if (host.startsWith('www.')) host = host.substring(4);
-      if (host.contains(':')) host = host.split(':')[0];
-
-      if (_domainMappings.containsKey(host)) {
-        return _domainMappings[host]!;
-      }
+      String host = uri.host.toLowerCase().replaceAll('www.', '');
+      if (_domainMappings.containsKey(host)) return _domainMappings[host]!;
 
       final parts = host.split('.');
-      for (int i = 0; i < parts.length; i++) {
-        final domainPart = parts.sublist(i).join('.');
-        if (_domainMappings.containsKey(domainPart)) {
-          return _domainMappings[domainPart]!;
-        }
-        if (i == parts.length - 2) {
-          final namePart = parts[i];
-          if (_domainMappings.containsKey(namePart)) {
-            return _domainMappings[namePart]!;
-          }
-        }
-      }
-
       if (parts.isNotEmpty) {
-        final firstPart = parts[0];
-        return firstPart[0].toUpperCase() + firstPart.substring(1);
+        final name = parts[0];
+        return name[0].toUpperCase() + name.substring(1);
       }
       return 'Unknown';
     } catch (e) {
@@ -249,27 +185,7 @@ class SourceExtractor {
   }
 }
 
-// --- SECTION CONFIGURATION MODEL ---
-// Replaces dashboard_constants.dart with dynamic configuration
-class NewsSection {
-  final String emoji;
-  final String title;
-  final String subtitle;
-  final List<NewsSource> sources;
-  final Color accentColor;
-  final VoidCallback? onViewAll;
-
-  NewsSection({
-    required this.emoji,
-    required this.title,
-    required this.subtitle,
-    required this.sources,
-    required this.accentColor,
-    this.onViewAll,
-  });
-}
-
-// --- FULL AI RECAP WIDGET ---
+// --- FULL AI RECAP WIDGET (Same design) ---
 class FullAiRecap extends StatelessWidget {
   final String summary;
   final bool isArabic;
@@ -292,15 +208,15 @@ class FullAiRecap extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              AppColors.accentPurple.withOpacity(0.2),
-              AppColors.accentEmerald.withOpacity(0.1),
+              FrenchAppColors.accentPurple.withOpacity(0.2),
+              FrenchAppColors.accentBlue.withOpacity(0.1),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: AppColors.accentPurple.withOpacity(0.3),
+            color: FrenchAppColors.accentPurple.withOpacity(0.3),
             width: 1,
           ),
         ),
@@ -313,8 +229,8 @@ class FullAiRecap extends StatelessWidget {
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(AppColors.accentPurple),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      FrenchAppColors.accentPurple),
                 ),
               ),
               const SizedBox(width: 12),
@@ -323,7 +239,7 @@ class FullAiRecap extends StatelessWidget {
                 style: AppFonts.body(
                   text: isArabic ? 'جاري التلخيص...' : 'Generating summary...',
                   fontSize: 13,
-                  color: AppColors.textSecondary,
+                  color: FrenchAppColors.textSecondary,
                 ),
               ),
             ],
@@ -336,20 +252,20 @@ class FullAiRecap extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.accentPurple.withOpacity(0.15),
-            AppColors.cardBgElevated.withOpacity(0.8),
+            FrenchAppColors.accentPurple.withOpacity(0.15),
+            FrenchAppColors.cardBgElevated.withOpacity(0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.accentPurple.withOpacity(0.4),
+          color: FrenchAppColors.accentPurple.withOpacity(0.4),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accentPurple.withOpacity(0.15),
+            color: FrenchAppColors.accentPurple.withOpacity(0.15),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -366,7 +282,7 @@ class FullAiRecap extends StatelessWidget {
                 color: Colors.black.withOpacity(0.2),
                 border: Border(
                   bottom: BorderSide(
-                    color: AppColors.accentPurple.withOpacity(0.2),
+                    color: FrenchAppColors.accentPurple.withOpacity(0.2),
                   ),
                 ),
               ),
@@ -376,7 +292,7 @@ class FullAiRecap extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.accentPurple.withOpacity(0.3),
+                      color: FrenchAppColors.accentPurple.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -385,7 +301,7 @@ class FullAiRecap extends StatelessWidget {
                         Icon(
                           Icons.auto_awesome,
                           size: 14,
-                          color: AppColors.accentPurple,
+                          color: FrenchAppColors.accentPurple,
                         ),
                         const SizedBox(width: 6),
                         Text(
@@ -393,7 +309,7 @@ class FullAiRecap extends StatelessWidget {
                           style: AppFonts.caption(
                             text: isArabic ? 'ملخص ذكي' : 'AI Recap',
                             fontSize: 11,
-                            color: AppColors.accentPurple,
+                            color: FrenchAppColors.accentPurple,
                           ).copyWith(fontWeight: FontWeight.w700),
                         ),
                       ],
@@ -411,7 +327,7 @@ class FullAiRecap extends StatelessWidget {
                       child: Icon(
                         Icons.close,
                         size: 16,
-                        color: AppColors.textMuted,
+                        color: FrenchAppColors.textMuted,
                       ),
                     ),
                   ),
@@ -427,7 +343,7 @@ class FullAiRecap extends StatelessWidget {
                   style: AppFonts.body(
                     text: summary,
                     fontSize: isArabic ? 14 : 13,
-                    color: AppColors.textPrimary,
+                    color: FrenchAppColors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ).copyWith(height: 1.7, letterSpacing: 0.2),
                   textAlign: isArabic ? TextAlign.right : TextAlign.left,
@@ -441,152 +357,115 @@ class FullAiRecap extends StatelessWidget {
   }
 }
 
-class DashboardScreen extends StatefulWidget {
-  final List<RssItemModel> worldNewsArticles;
-  final List<RssItemModel> tunisianArticles;
-  final List<RssItemModel> moroccanArticles;
-  final List<RssItemModel> algerianArticles;
-  final List<RssItemModel> iranianArticles;
-  final List<RssItemModel> frenchArticles; // NEW
-  final VoidCallback onViewWorldNews;
-  final VoidCallback onViewTunisia;
-  final VoidCallback onViewMorocco;
-  final VoidCallback onViewAlgeria;
-  final VoidCallback onViewFrance; // NEW
-  final VoidCallback onViewIran;
-  final int totalArticles;
-  final int tunisianCount;
-  final int moroccanCount;
-  final int algerianCount;
-  final int iranianCount;
-  final int frenchCount; // NEW
-  final bool isLoading;
-
-  const DashboardScreen({
-    super.key,
-    required this.worldNewsArticles,
-    required this.tunisianArticles,
-    required this.moroccanArticles,
-    required this.algerianArticles,
-    required this.iranianArticles,
-    required this.frenchArticles, // NEW
-    required this.onViewWorldNews,
-    required this.onViewTunisia,
-    required this.onViewMorocco,
-    required this.onViewAlgeria,
-    required this.onViewIran,
-    required this.onViewFrance, // NEW
-    required this.totalArticles,
-    required this.tunisianCount,
-    required this.moroccanCount,
-    required this.algerianCount,
-    required this.iranianCount,
-    required this.frenchCount, // NEW
-    required this.isLoading,
-  });
+class FrenchNewsScreen extends StatefulWidget {
+  final bool isEmbedded;
+  const FrenchNewsScreen({super.key, this.isEmbedded = false});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<FrenchNewsScreen> createState() => _FrenchNewsScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
+class _FrenchNewsScreenState extends State<FrenchNewsScreen>
     with TickerProviderStateMixin {
+  final RssRemoteDataSource _dataSource = RssRemoteDataSource();
+  List<NewsSource> get _rssSources => NewsSources.french;
+
+  final Map<int, List<RssItemModel>> _dashboardData = {};
+  final Set<int> _loadingIndices = {};
+  bool _isGlobalLoading = true;
+  final Map<String, String> _sourceErrors = {};
+
+  // --- LANGUAGE & TICKER STATE ---
   String _currentLangMode = 'original';
   final Map<String, String> _translationCache = {};
-  final Set<String> _loadingTranslations = {};
 
   AnimationController? _tickerController;
   double _textWidth = 0.0;
   String _currentTickerText = "";
   List<RssItemModel> _recentNews = [];
 
-  // Dynamic sections using NewsSources
-  late final List<NewsSection> _sections;
+  // --- DAILY RECAP STATE ---
+  bool _isDailyRecapLoading = false;
+  String? _dailyRecap;
+  bool _showDailyRecap = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeSections();
-    _updateRecentNews();
+    _loadDashboardData();
   }
 
-  // Initialize sections dynamically from NewsSources
-  void _initializeSections() {
-    _sections = [
-      NewsSection(
-        emoji: '🌍',
-        title: 'World News',
-        subtitle:
-            'Global headlines • ${NewsSources.international.length} sources',
-        sources: NewsSources.international,
-        accentColor: AppColors.accentOrange,
-        onViewAll: widget.onViewWorldNews,
-      ),
-      NewsSection(
-        emoji: '🇹🇳',
-        title: 'Tunisia',
-        subtitle: 'Local updates • ${NewsSources.tunisian.length} sources',
-        sources: NewsSources.tunisian,
-        accentColor: const Color(0xFFE74C3C),
-        onViewAll: widget.onViewTunisia,
-      ),
-      NewsSection(
-        emoji: '🇲🇦',
-        title: 'Morocco',
-        subtitle: 'Local updates • ${NewsSources.moroccan.length} sources',
-        sources: NewsSources.moroccan,
-        accentColor: const Color(0xFF27AE60),
-        onViewAll: widget.onViewMorocco,
-      ),
-      NewsSection(
-        emoji: '🇩🇿',
-        title: 'Algeria',
-        subtitle: 'Local updates • ${NewsSources.algerian.length} sources',
-        sources: NewsSources.algerian,
-        accentColor: const Color(0xFF3498DB),
-        onViewAll: widget.onViewAlgeria,
-      ),
-      NewsSection(
-        emoji: '🇫🇷',
-        title: 'France',
-        subtitle: 'French news • ${NewsSources.french.length} sources',
-        sources: NewsSources.french,
-        accentColor: const Color(0xFF0055A4), // French Blue
-        onViewAll: widget.onViewFrance, // Add this callback
-      ),
-      NewsSection(
-        emoji: '🇮🇷',
-        title: 'Iran',
-        subtitle: 'Regional news • ${NewsSources.iranian.length} sources',
-        sources: NewsSources.iranian,
-        accentColor: const Color(0xFF9B59B6),
-        onViewAll: widget.onViewIran,
-      ),
-    ];
-  }
+  // --- DATA LOADING ---
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isGlobalLoading = true;
+      _sourceErrors.clear();
+      _loadingIndices.clear();
+      _dailyRecap = null;
+      _showDailyRecap = false;
+    });
 
-  @override
-  void didUpdateWidget(covariant DashboardScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.worldNewsArticles.length != widget.worldNewsArticles.length ||
-        oldWidget.tunisianArticles.length != widget.tunisianArticles.length) {
+    final fetchTasks = _rssSources.asMap().entries.map((entry) {
+      return _fetchSource(entry.key, entry.value);
+    }).toList();
+
+    await Future.wait(fetchTasks);
+
+    if (mounted) {
+      setState(() => _isGlobalLoading = false);
       _updateRecentNews();
     }
   }
 
+  Future<void> _fetchSource(int index, NewsSource source) async {
+    if (mounted) setState(() => _loadingIndices.add(index));
+
+    final cleanUrl = source.url.trim();
+    if (cleanUrl.isEmpty) {
+      _loadingIndices.remove(index);
+      return;
+    }
+
+    try {
+      List<RssItemModel> items;
+
+      if (source.type == SourceType.scrapable) {
+        items = await _dataSource.scrapeWebsite(
+          cleanUrl,
+          source.selectors!,
+          sourceName: source.name,
+          limit: 3,
+        );
+      } else {
+        items = await _dataSource.fetchRssFeed(
+          cleanUrl,
+          sourceName: source.name,
+          limit: 3,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _loadingIndices.remove(index);
+          if (items.isNotEmpty) _dashboardData[index] = items;
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ ${source.name}: $e');
+      if (mounted) {
+        setState(() {
+          _loadingIndices.remove(index);
+          _sourceErrors[source.name] = e.toString();
+        });
+      }
+    }
+  }
+
+  // --- TICKER & LANGUAGE LOGIC ---
   void _updateRecentNews() {
-    final allItems = [
-      ...widget.worldNewsArticles,
-      ...widget.tunisianArticles,
-      ...widget.moroccanArticles,
-      ...widget.algerianArticles,
-      ...widget.iranianArticles,
-    ];
-    allItems.sort((a, b) {
-      final dateA = a.publishedAt ?? DateTime(1970);
-      final dateB = b.publishedAt ?? DateTime(1970);
-      return dateB.compareTo(dateA);
-    });
+    final allItems = _dashboardData.values.expand((e) => e).toList();
+    allItems.sort((a, b) => (b.publishedAt ?? DateTime(1970))
+        .compareTo(a.publishedAt ?? DateTime(1970)));
     _recentNews = allItems.take(10).toList();
 
     if (_currentLangMode == 'original') {
@@ -632,55 +511,42 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  String _formatMixedText(String text) {
-    if (_currentLangMode != 'arabic') return text;
-    final words = text.split(' ');
-    final buffer = StringBuffer();
-    for (var word in words) {
-      final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
-      if (cleanWord.isNotEmpty && !AppFonts.containsArabic(cleanWord)) {
-        buffer.write('($word) ');
-      } else {
-        buffer.write('$word ');
-      }
-    }
-    return buffer.toString().trim();
+  void _initTicker() {
+    if (_currentTickerText.isEmpty) return;
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: _currentTickerText,
+        style: AppFonts.body(
+          text: _currentTickerText,
+          fontSize: 15,
+          color: Colors.white,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      maxLines: 1,
+      textDirection: ui.TextDirection.ltr,
+    )..layout();
+    _textWidth = textPainter.width;
+    final duration = Duration(milliseconds: ((_textWidth / 80) * 1000).round());
+    _tickerController?.dispose();
+    _tickerController = AnimationController(
+      vsync: this,
+      duration: duration,
+    )..repeat();
+    if (mounted) setState(() {});
   }
 
-  String _getDisplayTitle(RssItemModel article) {
+  Future<String> _getDisplayTitle(RssItemModel article) async {
     final original = article.title;
     if (_currentLangMode == 'original') return original;
-    final cacheKey = '$original-$_currentLangMode';
-    if (_translationCache.containsKey(cacheKey)) {
-      return _formatMixedText(_translationCache[cacheKey]!);
-    }
-    if (!_loadingTranslations.contains(cacheKey)) {
-      _loadTranslation(original, _currentLangMode);
-    }
-    return original;
-  }
-
-  Future<void> _loadTranslation(String text, String targetMode) async {
-    if (text.isEmpty) return;
-    final cacheKey = '$text-$targetMode';
-    _loadingTranslations.add(cacheKey);
-    try {
-      final translated = await _translateText(text, targetMode);
-      if (translated != text && mounted) {
-        setState(() {
-          _translationCache[cacheKey] = translated;
-        });
-      }
-    } finally {
-      _loadingTranslations.remove(cacheKey);
-    }
+    return _getTranslatedText(original, _currentLangMode);
   }
 
   Future<String> _getTranslatedText(String text, String targetMode) async {
     final cacheKey = '$text-$targetMode';
     if (_translationCache.containsKey(cacheKey))
-      return _formatMixedText(_translationCache[cacheKey]!);
-    return await _translateText(text, targetMode);
+      return _translationCache[cacheKey]!;
+    return _translateText(text, targetMode);
   }
 
   Future<String> _translateText(String text, String targetMode) async {
@@ -717,33 +583,48 @@ class _DashboardScreenState extends State<DashboardScreen>
     return text;
   }
 
-  String _getDisplaySource(RssItemModel article) {
-    return SourceExtractor.extractSource(article.source, article.link);
-  }
+  // --- DAILY RECAP LOGIC ---
+  Future<void> _generateDailyRecap() async {
+    if (_dashboardData.isEmpty) return;
 
-  void _initTicker() {
-    if (_currentTickerText.isEmpty) return;
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: _currentTickerText,
-        style: AppFonts.body(
-          text: _currentTickerText,
-          fontSize: 15,
-          color: Colors.white,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      maxLines: 1,
-      textDirection: ui.TextDirection.ltr,
-    )..layout();
-    _textWidth = textPainter.width;
-    final duration = Duration(milliseconds: ((_textWidth / 80) * 1000).round());
-    _tickerController?.dispose();
-    _tickerController = AnimationController(
-      vsync: this,
-      duration: duration,
-    )..repeat();
-    if (mounted) setState(() {});
+    setState(() {
+      _isDailyRecapLoading = true;
+      _showDailyRecap = true;
+    });
+
+    try {
+      final allArticles = _dashboardData.values.expand((e) => e).toList();
+      allArticles.sort((a, b) => (b.publishedAt ?? DateTime.now())
+          .compareTo(a.publishedAt ?? DateTime.now()));
+
+      final contextBuffer = StringBuffer();
+      for (var article in allArticles.take(50)) {
+        contextBuffer.writeln(article.title);
+      }
+
+      final bool generateInEnglish = (_currentLangMode == 'english');
+      final bool isArabic = !generateInEnglish;
+
+      final recap = await MistralService().generateDailyRecap(
+        contextBuffer.toString(),
+        isArabic: isArabic,
+        topic: isArabic ? "فرنسا" : "France",
+      );
+
+      if (mounted) {
+        setState(() {
+          _dailyRecap = recap;
+          _isDailyRecapLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _dailyRecap = "Error generating summary.";
+          _isDailyRecapLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -763,46 +644,74 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
+  bool get _isArabicContent => _currentLangMode == 'arabic';
+
   @override
   Widget build(BuildContext context) {
+    final content = _buildContent();
+
+    if (widget.isEmbedded) return content;
+
+    return Scaffold(
+      backgroundColor: FrenchAppColors.bgDark,
+      appBar: AppBar(
+        backgroundColor: FrenchAppColors.bgDark,
+        elevation: 0,
+        title: Text(
+          'France Feed',
+          style: GoogleFonts.orbitron(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: 1.2,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          if (_sourceErrors.isNotEmpty)
+            Tooltip(
+              message: '${_sourceErrors.length} sources failed',
+              child:
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            ),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded,
+                color: FrenchAppColors.accentBlue),
+            onPressed: _isGlobalLoading ? null : _loadDashboardData,
+          ),
+        ],
+      ),
+      body: content,
+    );
+  }
+
+  Widget _buildContent() {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _buildModernHeader()),
-        SliverToBoxAdapter(child: _buildQuickStatsRow()),
-        // Dynamic sections from NewsSources
-        ..._sections.map((section) => _buildModernSection(
-              emoji: section.emoji,
-              title: section.title,
-              subtitle: section.subtitle,
-              articles: _getArticlesForSection(section.title),
-              onViewAll: section.onViewAll!,
-              accentColor: section.accentColor,
-              sourceCount: section.sources.length,
-            )),
-        const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+        if (_showDailyRecap)
+          SliverToBoxAdapter(child: _buildDailyRecapSection()),
+        if (!_showDailyRecap)
+          SliverToBoxAdapter(child: _buildDailyRecapTrigger()),
+        ..._rssSources.asMap().entries.map((entry) {
+          final index = entry.key;
+          final source = entry.value;
+          final items = _dashboardData[index] ?? [];
+          final isLoading = _loadingIndices.contains(index);
+          final hasError = _sourceErrors.containsKey(source.name);
+
+          return _buildModernSection(
+            source: source,
+            items: items,
+            isLoading: isLoading,
+            hasError: hasError,
+          );
+        }),
+        const SliverPadding(padding: EdgeInsets.only(bottom: 60)),
       ],
     );
   }
 
-  // Helper to get articles based on section title
-  List<RssItemModel> _getArticlesForSection(String title) {
-    switch (title) {
-      case 'World News':
-        return widget.worldNewsArticles;
-      case 'Tunisia':
-        return widget.tunisianArticles;
-      case 'Morocco':
-        return widget.moroccanArticles;
-      case 'Algeria':
-        return widget.algerianArticles;
-      case 'Iran':
-        return widget.iranianArticles;
-      case 'France':
-        return widget.frenchArticles;
-      default:
-        return [];
-    }
-  }
+  // --- UI COMPONENTS ---
 
   Widget _buildModernHeader() {
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -812,8 +721,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.accentOrange.withOpacity(0.9),
-            AppColors.accentGold.withOpacity(0.7),
+            FrenchAppColors.accentBlue.withOpacity(0.9),
+            FrenchAppColors.accentRed.withOpacity(0.7),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -821,7 +730,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accentOrange.withOpacity(0.3),
+            color: FrenchAppColors.accentBlue.withOpacity(0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -829,100 +738,69 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.white.withOpacity(0.1),
-                  Colors.transparent,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  isMobile ? 20 : 28, 24, isMobile ? 20 : 28, 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'LIVE FEED',
+                            style: AppFonts.caption(
+                              text: 'LIVE FEED',
+                              fontSize: 10,
+                              color: Colors.white,
+                            ).copyWith(
+                                letterSpacing: 2, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${_rssSources.length} Active Sources',
+                          style: GoogleFonts.inter(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildModernLangToggle(),
                 ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                      isMobile ? 20 : 28, 24, isMobile ? 20 : 28, 20),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                'LIVE FEED',
-                                style: AppFonts.caption(
-                                  text: 'LIVE FEED',
-                                  fontSize: 10,
-                                  color: Colors.white,
-                                ).copyWith(
-                                    letterSpacing: 2,
-                                    fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Text(
-                                  '${widget.totalArticles}',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                    height: 1,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Articles',
-                                  style: AppFonts.body(
-                                    text: 'Articles',
-                                    fontSize: 16,
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+            Container(
+              height: 54,
+              width: double.infinity,
+              color: Colors.black.withOpacity(0.2),
+              child: _tickerController == null
+                  ? Center(
+                      child: Text(
+                        "Loading feed...",
+                        style: AppFonts.body(
+                            text: "Loading feed...",
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.6)),
                       ),
-                      _buildModernLangToggle(),
-                    ],
-                  ),
-                ),
-                Container(
-                  height: 54,
-                  width: double.infinity,
-                  color: Colors.black.withOpacity(0.2),
-                  child: _tickerController == null
-                      ? Center(
-                          child: Text(
-                            "Loading news feed...",
-                            style: AppFonts.body(
-                              text: "Loading news feed...",
-                              fontSize: 13,
-                              color: Colors.white.withOpacity(0.6),
-                            ),
-                          ),
-                        )
-                      : _buildModernTicker(),
-                ),
-              ],
+                    )
+                  : _buildModernTicker(),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -960,20 +838,15 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.circle,
-            size: 6,
-            color: AppColors.accentGold,
-          ),
+          Icon(Icons.circle, size: 6, color: FrenchAppColors.accentGold),
           const SizedBox(width: 12),
           Text(
             text,
             style: AppFonts.body(
-              text: text,
-              fontSize: 15,
-              color: Colors.white.withOpacity(0.95),
-              fontWeight: FontWeight.w500,
-            ),
+                text: text,
+                fontSize: 15,
+                color: Colors.white.withOpacity(0.95),
+                fontWeight: FontWeight.w500),
             maxLines: 1,
           ),
         ],
@@ -984,23 +857,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildModernLangToggle() {
     String displayText;
     IconData iconData;
-    Color bgColor;
 
     switch (_currentLangMode) {
       case 'arabic':
         displayText = 'AR';
         iconData = Icons.translate;
-        bgColor = Colors.white.withOpacity(0.25);
         break;
       case 'english':
         displayText = 'EN';
         iconData = Icons.translate;
-        bgColor = Colors.white.withOpacity(0.25);
         break;
       default:
-        displayText = 'ORIG';
+        displayText = 'SRC';
         iconData = Icons.language;
-        bgColor = Colors.white.withOpacity(0.15);
     }
 
     return Material(
@@ -1011,12 +880,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: bgColor,
+            color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.3),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.3)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1026,10 +892,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               Text(
                 displayText,
                 style: AppFonts.caption(
-                  text: displayText,
-                  fontSize: 12,
-                  color: Colors.white,
-                ).copyWith(letterSpacing: 0.5),
+                        text: displayText, fontSize: 12, color: Colors.white)
+                    .copyWith(letterSpacing: 0.5),
               ),
             ],
           ),
@@ -1038,98 +902,113 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildQuickStatsRow() {
-    final isMobile = ResponsiveHelper.isMobile(context);
+  Widget _buildDailyRecapTrigger() {
+    final bool isDisabled = _isGlobalLoading || _dashboardData.isEmpty;
     return Container(
-      margin:
-          EdgeInsets.fromLTRB(isMobile ? 16 : 32, 20, isMobile ? 16 : 32, 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _buildStatChip('🇹🇳', widget.tunisianCount, widget.onViewTunisia,
-                const Color(0xFFE74C3C), NewsSources.tunisian.length),
-            const SizedBox(width: 10),
-            _buildStatChip('🇲🇦', widget.moroccanCount, widget.onViewMorocco,
-                const Color(0xFF27AE60), NewsSources.moroccan.length),
-            const SizedBox(width: 10),
-            _buildStatChip('🇩🇿', widget.algerianCount, widget.onViewAlgeria,
-                const Color(0xFF3498DB), NewsSources.algerian.length),
-            const SizedBox(width: 10),
-            _buildStatChip(
-                '🇫🇷',
-                widget.frenchCount,
-                widget.onViewFrance, // NEW
-                const Color(0xFF0055A4),
-                NewsSources.french.length),
-            const SizedBox(width: 10),
-            _buildStatChip('🇮🇷', widget.iranianCount, widget.onViewIran,
-                const Color(0xFF9B59B6), NewsSources.iranian.length),
-          ],
+      margin: const EdgeInsets.fromLTRB(32, 20, 32, 8),
+      decoration: BoxDecoration(
+        color: FrenchAppColors.cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border:
+            Border.all(color: FrenchAppColors.accentPurple.withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(
+              color: FrenchAppColors.accentPurple.withOpacity(0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isDisabled ? null : _generateDailyRecap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      FrenchAppColors.accentPurple,
+                      FrenchAppColors.accentBlue
+                    ]),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.auto_awesome_motion,
+                      color: Colors.white, size: 24),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isArabicContent
+                            ? 'ماذا حدث اليوم؟'
+                            : 'What Happened Today?',
+                        style: AppFonts.title(
+                            text: _isArabicContent
+                                ? 'ماذا حدث اليوم؟'
+                                : 'What Happened Today?',
+                            fontSize: 16,
+                            color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isDisabled
+                            ? (_isArabicContent
+                                ? 'جاري تحميل الأخبار...'
+                                : 'Loading news feed...')
+                            : (_isArabicContent
+                                ? 'ملخص ذكي للأخبار الفرنسية'
+                                : 'AI summary of French events'),
+                        style: AppFonts.body(
+                            text: '',
+                            fontSize: 12,
+                            color: FrenchAppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_isDailyRecapLoading)
+                  const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          color: FrenchAppColors.accentPurple, strokeWidth: 2))
+                else
+                  Icon(Icons.arrow_forward_ios_rounded,
+                      color: isDisabled
+                          ? Colors.white24
+                          : FrenchAppColors.accentPurple,
+                      size: 18),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStatChip(String emoji, int count, VoidCallback onTap,
-      Color color, int sourceCount) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.3)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 8),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  count.toString(),
-                  style: AppFonts.title(
-                    text: count.toString(),
-                    fontSize: 15,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  '$sourceCount sources',
-                  style: AppFonts.caption(
-                    text: '$sourceCount sources',
-                    fontSize: 9,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+  Widget _buildDailyRecapSection() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(32, 24, 32, 16),
+      child: FullAiRecap(
+        summary: _dailyRecap ?? "Unable to generate summary.",
+        isArabic: _isArabicContent,
+        isLoading: _isDailyRecapLoading,
+        onClose: () => setState(() => _showDailyRecap = false),
       ),
     );
   }
 
   Widget _buildModernSection({
-    required String emoji,
-    required String title,
-    required String subtitle,
-    required List<RssItemModel> articles,
-    required VoidCallback onViewAll,
-    required Color accentColor,
-    required int sourceCount,
+    required NewsSource source,
+    required List<RssItemModel> items,
+    required bool isLoading,
+    required bool hasError,
   }) {
     final isMobile = ResponsiveHelper.isMobile(context);
 
@@ -1146,17 +1025,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.15),
+                    color: FrenchAppColors.accentBlue.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: accentColor.withOpacity(0.3),
-                      width: 1,
-                    ),
+                        color: FrenchAppColors.accentBlue.withOpacity(0.3)),
                   ),
                   child: Center(
                     child: Text(
-                      emoji,
-                      style: const TextStyle(fontSize: 24),
+                      AppFonts.containsArabic(source.name) ? '🇫🇷' : '📰',
+                      style: const TextStyle(fontSize: 22),
                     ),
                   ),
                 ),
@@ -1166,62 +1043,58 @@ class _DashboardScreenState extends State<DashboardScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
+                        source.name,
                         style: AppFonts.title(
-                          text: title,
-                          fontSize: 20,
-                          color: Colors.white,
-                        ).copyWith(letterSpacing: -0.5),
+                                text: source.name,
+                                fontSize: 20,
+                                color: Colors.white)
+                            .copyWith(letterSpacing: -0.5),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        subtitle,
+                        'Recent updates',
                         style: AppFonts.body(
-                          text: subtitle,
-                          fontSize: 13,
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w500,
-                        ),
+                            text: 'Recent updates',
+                            fontSize: 13,
+                            color: FrenchAppColors.textMuted),
                       ),
                     ],
                   ),
                 ),
-                _buildViewAllButton(onViewAll, accentColor),
+                if (items.isNotEmpty && !isLoading && !hasError)
+                  _buildViewAllButton(source),
               ],
             ),
             const SizedBox(height: 20),
-            if (widget.isLoading && articles.isEmpty)
+            if (isLoading)
               _buildLoadingState()
-            else if (articles.isNotEmpty)
+            else if (items.isNotEmpty)
               LayoutBuilder(
                 builder: (context, constraints) {
                   if (constraints.maxWidth < 700) {
                     return Column(
                       children: [
-                        _buildFeaturedCard(articles.first, accentColor),
+                        _buildFeaturedCard(items.first),
                         const SizedBox(height: 12),
-                        ...articles.skip(1).take(2).map((article) =>
-                            _buildCompactCard(article, accentColor)),
+                        ...items
+                            .skip(1)
+                            .take(2)
+                            .map((item) => _buildCompactCard(item)),
                       ],
                     );
                   }
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        flex: 5,
-                        child: _buildFeaturedCard(articles.first, accentColor),
-                      ),
+                      Expanded(flex: 5, child: _buildFeaturedCard(items.first)),
                       const SizedBox(width: 16),
                       Expanded(
                         flex: 4,
                         child: Column(
                           children: [
-                            if (articles.length > 1)
-                              _buildCompactCard(articles[1], accentColor),
-                            if (articles.length > 2) const SizedBox(height: 12),
-                            if (articles.length > 2)
-                              _buildCompactCard(articles[2], accentColor),
+                            if (items.length > 1) _buildCompactCard(items[1]),
+                            if (items.length > 2) const SizedBox(height: 12),
+                            if (items.length > 2) _buildCompactCard(items[2]),
                           ],
                         ),
                       ),
@@ -1229,49 +1102,51 @@ class _DashboardScreenState extends State<DashboardScreen>
                   );
                 },
               )
-            else if (widget.totalArticles == 0)
-              _buildLoadingState()
             else
-              _buildEmptyState(),
+              _buildEmptyState(hasError),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildViewAllButton(VoidCallback onTap, Color accentColor) {
+  Widget _buildViewAllButton(NewsSource source) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SourceDetailScreen(
+                sourceName: source.name,
+                sourceUrl: source.url.trim(),
+                sourceType: source.type,
+                selectors: source.selectors,
+              ),
+            ),
+          );
+        },
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: accentColor.withOpacity(0.1),
+            color: FrenchAppColors.accentBlue.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: accentColor.withOpacity(0.3),
-              width: 1,
-            ),
+            border:
+                Border.all(color: FrenchAppColors.accentBlue.withOpacity(0.3)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'View All',
-                style: AppFonts.caption(
-                  text: 'View All',
-                  fontSize: 12,
-                  color: accentColor,
-                ),
-              ),
+              Text('View All',
+                  style: AppFonts.caption(
+                      text: 'View All',
+                      fontSize: 12,
+                      color: FrenchAppColors.accentBlue)),
               const SizedBox(width: 6),
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 14,
-                color: accentColor,
-              ),
+              Icon(Icons.arrow_forward_rounded,
+                  size: 14, color: FrenchAppColors.accentBlue),
             ],
           ),
         ),
@@ -1283,111 +1158,93 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       height: 320,
       decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(20),
-      ),
+          color: FrenchAppColors.cardBg,
+          borderRadius: BorderRadius.circular(20)),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
-              width: 40,
-              height: 40,
-              child: CircularProgressIndicator(
-                color: AppColors.accentOrange,
-                strokeWidth: 3,
-              ),
-            ),
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(
+                    color: FrenchAppColors.accentBlue, strokeWidth: 3)),
             const SizedBox(height: 16),
-            Text(
-              'Loading articles...',
-              style: AppFonts.body(
-                text: 'Loading articles...',
-                fontSize: 14,
-                color: AppColors.textMuted,
-              ),
-            ),
+            Text('Loading articles...',
+                style: AppFonts.body(
+                    text: 'Loading articles...',
+                    fontSize: 14,
+                    color: FrenchAppColors.textMuted)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool hasError) {
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.borderSubtle),
-      ),
+          color: FrenchAppColors.cardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: FrenchAppColors.borderSubtle)),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.article_outlined,
-              size: 48,
-              color: AppColors.textMuted,
-            ),
+            Icon(Icons.article_outlined,
+                size: 48, color: FrenchAppColors.textMuted),
             const SizedBox(height: 12),
-            Text(
-              'No articles found',
-              style: AppFonts.title(
-                text: 'No articles found',
-                fontSize: 15,
-                color: AppColors.textSecondary,
-              ),
-            ),
+            Text('No articles found',
+                style: AppFonts.title(
+                    text: 'No articles found',
+                    fontSize: 15,
+                    color: FrenchAppColors.textSecondary)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFeaturedCard(RssItemModel article, Color accentColor) {
-    final bool hasArabicContent = AppFonts.containsArabic(article.title);
-    final bool useArabicStyle =
-        _currentLangMode == 'arabic' || hasArabicContent;
-
-    return _ExpandableFeaturedCard(
+  Widget _buildFeaturedCard(RssItemModel article) {
+    return _FrenchMainArticleCard(
       article: article,
-      accentColor: accentColor,
-      isArabic: useArabicStyle,
+      accentColor: FrenchAppColors.accentBlue,
+      isArabic: _isArabicContent,
       isSummaryArabic: _currentLangMode != 'english',
       getDisplayTitle: _getDisplayTitle,
-      getDisplaySource: _getDisplaySource,
+      getDisplaySource: (item) =>
+          SourceExtractor.extractSource(item.source, item.link),
       onLaunchUrl: _launchUrl,
     );
   }
 
-  Widget _buildCompactCard(RssItemModel article, Color accentColor) {
-    final bool hasArabicContent = AppFonts.containsArabic(article.title);
-    final bool useArabicStyle =
-        _currentLangMode == 'arabic' || hasArabicContent;
-
-    return _ExpandableCompactCard(
+  Widget _buildCompactCard(RssItemModel article) {
+    return _FrenchSideArticleCard(
       article: article,
-      accentColor: accentColor,
-      isArabic: useArabicStyle,
+      accentColor: FrenchAppColors.accentRed,
+      isArabic: _isArabicContent,
       isSummaryArabic: _currentLangMode != 'english',
       getDisplayTitle: _getDisplayTitle,
-      getDisplaySource: _getDisplaySource,
+      getDisplaySource: (item) =>
+          SourceExtractor.extractSource(item.source, item.link),
       onLaunchUrl: _launchUrl,
     );
   }
 }
 
-class _ExpandableFeaturedCard extends StatefulWidget {
+// --- REUSABLE CARD WIDGETS FOR FRENCH NEWS ---
+
+class _FrenchMainArticleCard extends StatefulWidget {
   final RssItemModel article;
   final Color accentColor;
   final bool isArabic;
   final bool isSummaryArabic;
-  final String Function(RssItemModel) getDisplayTitle;
+  final Future<String> Function(RssItemModel) getDisplayTitle;
   final String Function(RssItemModel) getDisplaySource;
   final Future<void> Function(String) onLaunchUrl;
 
-  const _ExpandableFeaturedCard({
+  const _FrenchMainArticleCard({
     required this.article,
     required this.accentColor,
     required this.isArabic,
@@ -1398,11 +1255,10 @@ class _ExpandableFeaturedCard extends StatefulWidget {
   });
 
   @override
-  State<_ExpandableFeaturedCard> createState() =>
-      _ExpandableFeaturedCardState();
+  State<_FrenchMainArticleCard> createState() => _FrenchMainArticleCardState();
 }
 
-class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
+class _FrenchMainArticleCardState extends State<_FrenchMainArticleCard>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   bool _isLoading = false;
@@ -1414,12 +1270,9 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 250),
-      vsync: this,
-    );
-    _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+        duration: const Duration(milliseconds: 250), vsync: this);
+    _iconTurn = Tween<double>(begin: 0.0, end: 0.5)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -1448,19 +1301,17 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
           widget.article.description ?? '',
           isArabic: widget.isSummaryArabic,
         );
-        if (mounted) {
+        if (mounted)
           setState(() {
             _summary = result;
             _isLoading = false;
           });
-        }
       } catch (e) {
-        if (mounted) {
+        if (mounted)
           setState(() {
             _summary = "Unable to generate summary.";
             _isLoading = false;
           });
-        }
       }
     } else {
       setState(() => _isLoading = false);
@@ -1489,9 +1340,8 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
-    final String displayTitle = widget.getDisplayTitle(widget.article);
-    final String displaySource = widget.getDisplaySource(widget.article);
-    final bool useArabicStyle = widget.isArabic;
+    final bool useArabicStyle =
+        widget.isArabic || AppFonts.containsArabic(widget.article.title);
 
     return GestureDetector(
       onTap: () => widget.onLaunchUrl(widget.article.link),
@@ -1500,12 +1350,12 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
         curve: Curves.easeOutQuart,
         height: _isExpanded ? (isMobile ? 480 : 500) : (isMobile ? 260 : 280),
         decoration: BoxDecoration(
-          color: AppColors.cardBg,
+          color: FrenchAppColors.cardBg,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: _isExpanded
                 ? widget.accentColor.withOpacity(0.5)
-                : AppColors.borderSubtle,
+                : FrenchAppColors.borderSubtle,
             width: _isExpanded ? 2 : 1,
           ),
           boxShadow: [
@@ -1532,7 +1382,7 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
                     gradient: LinearGradient(
                       colors: [
                         widget.accentColor,
-                        widget.accentColor.withOpacity(0.3),
+                        widget.accentColor.withOpacity(0.3)
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -1560,9 +1410,13 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            displaySource.toUpperCase(),
+                            widget
+                                .getDisplaySource(widget.article)
+                                .toUpperCase(),
                             style: AppFonts.caption(
-                              text: displaySource.toUpperCase(),
+                              text: widget
+                                  .getDisplaySource(widget.article)
+                                  .toUpperCase(),
                               fontSize: 10,
                               color: widget.accentColor,
                             ).copyWith(letterSpacing: 1.0),
@@ -1573,47 +1427,50 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.schedule_rounded,
-                              size: 13,
-                              color: AppColors.textMuted,
-                            ),
+                            Icon(Icons.schedule_rounded,
+                                size: 13, color: FrenchAppColors.textMuted),
                             const SizedBox(width: 5),
                             Text(
                               _formatTimeAgo(widget.article.publishedAt),
                               style: AppFonts.caption(
-                                text:
-                                    _formatTimeAgo(widget.article.publishedAt),
-                                fontSize: 11,
-                                color: AppColors.textMuted,
-                              ),
+                                  text: _formatTimeAgo(
+                                      widget.article.publishedAt),
+                                  fontSize: 11,
+                                  color: FrenchAppColors.textMuted),
                             ),
                           ],
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
-                    Text(
-                      displayTitle,
-                      style: AppFonts.title(
-                        text: displayTitle,
-                        fontSize: isMobile ? 18 : 20,
-                        color: Colors.white,
-                      ).copyWith(height: 1.3, letterSpacing: -0.3),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign:
-                          useArabicStyle ? TextAlign.right : TextAlign.left,
+                    FutureBuilder<String>(
+                      future: widget.getDisplayTitle(widget.article),
+                      builder: (context, snapshot) {
+                        final title = snapshot.data ?? widget.article.title;
+                        return Text(
+                          title,
+                          style: AppFonts.title(
+                                  text: title,
+                                  fontSize: isMobile ? 18 : 20,
+                                  color: Colors.white)
+                              .copyWith(height: 1.3),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign:
+                              useArabicStyle ? TextAlign.right : TextAlign.left,
+                        );
+                      },
                     ),
                     if (!_isExpanded) ...[
                       const SizedBox(height: 10),
                       Text(
                         _getSnippet(widget.article.description),
                         style: AppFonts.body(
-                          text: _getSnippet(widget.article.description),
-                          fontSize: 14,
-                          color: AppColors.textSecondary.withOpacity(0.8),
-                        ).copyWith(height: 1.5),
+                                text: _getSnippet(widget.article.description),
+                                fontSize: 13,
+                                color: FrenchAppColors.textSecondary
+                                    .withOpacity(0.8))
+                            .copyWith(height: 1.5),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign:
@@ -1638,22 +1495,6 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
                     ],
                     Row(
                       children: [
-                        if (!useArabicStyle) ...[
-                          Icon(
-                            Icons.open_in_new_rounded,
-                            size: 14,
-                            color: AppColors.textMuted,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Read article',
-                            style: AppFonts.body(
-                              text: 'Read article',
-                              fontSize: 12,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ],
                         const Spacer(),
                         Material(
                           color: Colors.transparent,
@@ -1667,21 +1508,21 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
                                 gradient: LinearGradient(
                                   colors: _isExpanded
                                       ? [
-                                          AppColors.accentPurple,
-                                          AppColors.accentPurple
-                                              .withOpacity(0.8),
+                                          FrenchAppColors.accentPurple,
+                                          FrenchAppColors.accentPurple
+                                              .withOpacity(0.8)
                                         ]
                                       : [
-                                          AppColors.accentGold,
-                                          AppColors.accentOrange,
+                                          FrenchAppColors.accentGold,
+                                          widget.accentColor
                                         ],
                                 ),
                                 borderRadius: BorderRadius.circular(10),
                                 boxShadow: [
                                   BoxShadow(
                                     color: (_isExpanded
-                                            ? AppColors.accentPurple
-                                            : AppColors.accentOrange)
+                                            ? FrenchAppColors.accentPurple
+                                            : widget.accentColor)
                                         .withOpacity(0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
@@ -1693,20 +1534,19 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
                                 children: [
                                   RotationTransition(
                                     turns: _iconTurn,
-                                    child: const Icon(
-                                      Icons.auto_awesome,
-                                      size: 14,
-                                      color: Colors.white,
-                                    ),
+                                    child: const Icon(Icons.auto_awesome,
+                                        size: 14, color: Colors.white),
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     _isExpanded ? 'Close' : 'AI Recap',
                                     style: AppFonts.caption(
-                                      text: _isExpanded ? 'Close' : 'AI Recap',
-                                      fontSize: 11,
-                                      color: Colors.white,
-                                    ).copyWith(fontWeight: FontWeight.w700),
+                                            text: _isExpanded
+                                                ? 'Close'
+                                                : 'AI Recap',
+                                            fontSize: 11,
+                                            color: Colors.white)
+                                        .copyWith(fontWeight: FontWeight.w700),
                                   ),
                                 ],
                               ),
@@ -1726,16 +1566,16 @@ class _ExpandableFeaturedCardState extends State<_ExpandableFeaturedCard>
   }
 }
 
-class _ExpandableCompactCard extends StatefulWidget {
+class _FrenchSideArticleCard extends StatefulWidget {
   final RssItemModel article;
   final Color accentColor;
   final bool isArabic;
   final bool isSummaryArabic;
-  final String Function(RssItemModel) getDisplayTitle;
+  final Future<String> Function(RssItemModel) getDisplayTitle;
   final String Function(RssItemModel) getDisplaySource;
   final Future<void> Function(String) onLaunchUrl;
 
-  const _ExpandableCompactCard({
+  const _FrenchSideArticleCard({
     required this.article,
     required this.accentColor,
     required this.isArabic,
@@ -1746,10 +1586,10 @@ class _ExpandableCompactCard extends StatefulWidget {
   });
 
   @override
-  State<_ExpandableCompactCard> createState() => _ExpandableCompactCardState();
+  State<_FrenchSideArticleCard> createState() => _FrenchSideArticleCardState();
 }
 
-class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
+class _FrenchSideArticleCardState extends State<_FrenchSideArticleCard>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   bool _isLoading = false;
@@ -1761,12 +1601,9 @@ class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 250),
-      vsync: this,
-    );
-    _iconTurn = Tween<double>(begin: 0.0, end: 0.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+        duration: const Duration(milliseconds: 250), vsync: this);
+    _iconTurn = Tween<double>(begin: 0.0, end: 0.5)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -1795,19 +1632,17 @@ class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
           widget.article.description ?? '',
           isArabic: widget.isSummaryArabic,
         );
-        if (mounted) {
+        if (mounted)
           setState(() {
             _summary = result;
             _isLoading = false;
           });
-        }
       } catch (e) {
-        if (mounted) {
+        if (mounted)
           setState(() {
             _summary = "Unable to generate summary.";
             _isLoading = false;
           });
-        }
       }
     } else {
       setState(() => _isLoading = false);
@@ -1827,9 +1662,9 @@ class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
 
   @override
   Widget build(BuildContext context) {
-    final String displayTitle = widget.getDisplayTitle(widget.article);
     final String displaySource = widget.getDisplaySource(widget.article);
-    final bool useArabicStyle = widget.isArabic;
+    final bool useArabicStyle =
+        widget.isArabic || AppFonts.containsArabic(widget.article.title);
 
     return GestureDetector(
       onTap: () => widget.onLaunchUrl(widget.article.link),
@@ -1839,12 +1674,12 @@ class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
         margin: const EdgeInsets.only(bottom: 12),
         height: _isExpanded ? 340 : 130,
         decoration: BoxDecoration(
-          color: AppColors.cardBg,
+          color: FrenchAppColors.cardBg,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _isExpanded
                 ? widget.accentColor.withOpacity(0.4)
-                : AppColors.borderSubtle,
+                : FrenchAppColors.borderSubtle,
             width: _isExpanded ? 1.5 : 1,
           ),
         ),
@@ -1862,45 +1697,46 @@ class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
                   Text(
                     displaySource.toUpperCase(),
                     style: AppFonts.caption(
-                      text: displaySource.toUpperCase(),
-                      fontSize: 10,
-                      color: widget.accentColor,
-                    ).copyWith(letterSpacing: 0.8),
+                            text: displaySource.toUpperCase(),
+                            fontSize: 10,
+                            color: widget.accentColor)
+                        .copyWith(letterSpacing: 0.8),
                   ),
                   if (!useArabicStyle) const Spacer(),
                   if (useArabicStyle) const SizedBox(width: 10),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.schedule_rounded,
-                        size: 11,
-                        color: AppColors.textMuted,
-                      ),
+                      Icon(Icons.schedule_rounded,
+                          size: 11, color: FrenchAppColors.textMuted),
                       const SizedBox(width: 4),
                       Text(
                         _formatTimeAgo(widget.article.publishedAt),
                         style: AppFonts.caption(
-                          text: _formatTimeAgo(widget.article.publishedAt),
-                          fontSize: 10,
-                          color: AppColors.textMuted,
-                        ),
+                            text: _formatTimeAgo(widget.article.publishedAt),
+                            fontSize: 10,
+                            color: FrenchAppColors.textMuted),
                       ),
                     ],
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              Text(
-                displayTitle,
-                style: AppFonts.title(
-                  text: displayTitle,
-                  fontSize: 14,
-                  color: Colors.white,
-                ).copyWith(height: 1.4),
-                maxLines: _isExpanded ? 3 : 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: useArabicStyle ? TextAlign.right : TextAlign.left,
+              FutureBuilder<String>(
+                future: widget.getDisplayTitle(widget.article),
+                builder: (context, snapshot) {
+                  final title = snapshot.data ?? widget.article.title;
+                  return Text(
+                    title,
+                    style: AppFonts.title(
+                            text: title, fontSize: 14, color: Colors.white)
+                        .copyWith(height: 1.4),
+                    maxLines: _isExpanded ? 3 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign:
+                        useArabicStyle ? TextAlign.right : TextAlign.left,
+                  );
+                },
               ),
               if (_isExpanded) ...[
                 const SizedBox(height: 10),
@@ -1934,12 +1770,13 @@ class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
                           gradient: LinearGradient(
                             colors: _isExpanded
                                 ? [
-                                    AppColors.accentPurple,
-                                    AppColors.accentPurple.withOpacity(0.8),
+                                    FrenchAppColors.accentPurple,
+                                    FrenchAppColors.accentPurple
+                                        .withOpacity(0.8)
                                   ]
                                 : [
                                     widget.accentColor.withOpacity(0.8),
-                                    widget.accentColor,
+                                    widget.accentColor
                                   ],
                           ),
                           borderRadius: BorderRadius.circular(8),
@@ -1949,20 +1786,17 @@ class _ExpandableCompactCardState extends State<_ExpandableCompactCard>
                           children: [
                             RotationTransition(
                               turns: _iconTurn,
-                              child: const Icon(
-                                Icons.auto_awesome,
-                                size: 12,
-                                color: Colors.white,
-                              ),
+                              child: const Icon(Icons.auto_awesome,
+                                  size: 12, color: Colors.white),
                             ),
                             const SizedBox(width: 5),
                             Text(
                               _isExpanded ? 'Close' : 'Recap',
                               style: AppFonts.caption(
-                                text: _isExpanded ? 'Close' : 'Recap',
-                                fontSize: 10,
-                                color: Colors.white,
-                              ).copyWith(fontWeight: FontWeight.w700),
+                                      text: _isExpanded ? 'Close' : 'Recap',
+                                      fontSize: 10,
+                                      color: Colors.white)
+                                  .copyWith(fontWeight: FontWeight.w700),
                             ),
                           ],
                         ),

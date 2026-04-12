@@ -148,6 +148,8 @@ class WebNavBar extends StatelessWidget {
         navItem('Morocco', 2, badge: 'MA', badgeColor: const Color(0xFF006233)),
         navItem('Algeria', 3, badge: 'DZ', badgeColor: const Color(0xFF008000)),
         navItem('Iran', 4, badge: 'IR', badgeColor: const Color(0xFF4CAF50)),
+        navItem('France', 6,
+            badge: 'FR', badgeColor: const Color(0xFF0055A4)), // ADDED FRANCE
         navItem('World', 5, badge: 'INT', badgeColor: const Color(0xFF9B59B6)),
       ],
     );
@@ -324,14 +326,14 @@ class WebNavBar extends StatelessWidget {
                 ),
               ),
             ),
-            // Grid of Options
+            // Grid of Options - CHANGED TO 4 COLUMNS TO FIT FRANCE
             GridView.count(
               shrinkWrap: true,
-              crossAxisCount: 3,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.2,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              crossAxisCount: 4, // Changed from 3 to 4
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.0, // Adjusted for 4 columns
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
                 _buildGridNavItem(context, 'Dashboard', 0,
                     Icons.dashboard_rounded, const Color(0xFFFF8C00)),
@@ -343,6 +345,8 @@ class WebNavBar extends StatelessWidget {
                     context, 'Algeria', 3, Icons.flag, const Color(0xFF008000)),
                 _buildGridNavItem(
                     context, 'Iran', 4, Icons.flag, const Color(0xFF4CAF50)),
+                _buildGridNavItem(context, 'France', 6, Icons.flag,
+                    const Color(0xFF0055A4)), // ADDED FRANCE
                 _buildGridNavItem(
                     context, 'World', 5, Icons.public, const Color(0xFF9B59B6)),
               ],

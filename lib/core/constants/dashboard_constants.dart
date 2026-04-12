@@ -18,6 +18,7 @@ class DashboardConstants {
       NewsSources.international.take(7).toList();
 
   static List<NewsSource> get iranianFeatured => NewsSources.iranian;
+  static final List<NewsSource> frenchFeatured = NewsSources.french; // ADD THIS
 
   // ═══════════════════════════════════════════════════════════
   // CONSOLIDATED SOURCES (For Detailed Screens)

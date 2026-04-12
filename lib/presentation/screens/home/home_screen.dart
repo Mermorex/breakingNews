@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:news_app/core/utils/responsive.dart';
 import 'package:news_app/presentation/screens/dashboard/dashboard_screen.dart';
+import 'package:news_app/presentation/screens/france_news_screen.dart';
 import 'package:news_app/presentation/screens/irannews_screen.dart';
 import 'package:news_app/presentation/screens/Tunisianscreen.dart';
 import 'package:news_app/presentation/screens/international_screen.dart';
@@ -157,6 +158,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return const IranianNewsScreen(isEmbedded: true);
       case 5:
         return const InternationalNewsScreen(isEmbedded: true);
+      case 6: // FRANCE
+        return const FrenchNewsScreen(isEmbedded: true);
       default:
         return _buildDashboard();
     }
@@ -199,16 +202,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       moroccanArticles: _controller.moroccanFeaturedArticles,
       algerianArticles: _controller.algerianFeaturedArticles,
       iranianArticles: _controller.iranianFeaturedArticles,
+      frenchArticles: _controller.frenchFeaturedArticles,
       totalArticles: _controller.totalArticles,
       tunisianCount: _controller.tunisianCount,
       moroccanCount: _controller.moroccanCount,
       algerianCount: _controller.algerianCount,
       iranianCount: _controller.iranianCount,
+      frenchCount: _controller.frenchCount,
       onViewWorldNews: () => _handleNavigation(5),
       onViewTunisia: () => _handleNavigation(1),
       onViewMorocco: () => _handleNavigation(2),
       onViewAlgeria: () => _handleNavigation(3),
       onViewIran: () => _handleNavigation(4),
+      onViewFrance: () => _handleNavigation(6), // This now works!
       isLoading: _controller.isLoading,
     );
   }
