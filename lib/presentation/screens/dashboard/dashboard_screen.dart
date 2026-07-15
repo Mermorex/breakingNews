@@ -6,8 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
 import 'package:news_app/core/utils/responsive.dart';
-// REMOVED: import 'package:news_app/core/constants/dashboard_constants.dart';
-import 'package:news_app/data/models/news_source.dart'; // ADDED: Direct access to sources
+import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/data/grok_service.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -250,7 +249,6 @@ class SourceExtractor {
 }
 
 // --- SECTION CONFIGURATION MODEL ---
-// Replaces dashboard_constants.dart with dynamic configuration
 class NewsSection {
   final String emoji;
   final String title;
@@ -447,19 +445,19 @@ class DashboardScreen extends StatefulWidget {
   final List<RssItemModel> moroccanArticles;
   final List<RssItemModel> algerianArticles;
   final List<RssItemModel> iranianArticles;
-  final List<RssItemModel> frenchArticles; // NEW
+  final List<RssItemModel> frenchArticles;
   final VoidCallback onViewWorldNews;
   final VoidCallback onViewTunisia;
   final VoidCallback onViewMorocco;
   final VoidCallback onViewAlgeria;
-  final VoidCallback onViewFrance; // NEW
+  final VoidCallback onViewFrance;
   final VoidCallback onViewIran;
   final int totalArticles;
   final int tunisianCount;
   final int moroccanCount;
   final int algerianCount;
   final int iranianCount;
-  final int frenchCount; // NEW
+  final int frenchCount;
   final bool isLoading;
 
   const DashboardScreen({
@@ -469,19 +467,19 @@ class DashboardScreen extends StatefulWidget {
     required this.moroccanArticles,
     required this.algerianArticles,
     required this.iranianArticles,
-    required this.frenchArticles, // NEW
+    required this.frenchArticles,
     required this.onViewWorldNews,
     required this.onViewTunisia,
     required this.onViewMorocco,
     required this.onViewAlgeria,
     required this.onViewIran,
-    required this.onViewFrance, // NEW
+    required this.onViewFrance,
     required this.totalArticles,
     required this.tunisianCount,
     required this.moroccanCount,
     required this.algerianCount,
     required this.iranianCount,
-    required this.frenchCount, // NEW
+    required this.frenchCount,
     required this.isLoading,
   });
 
@@ -500,7 +498,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   String _currentTickerText = "";
   List<RssItemModel> _recentNews = [];
 
-  // Dynamic sections using NewsSources
   late final List<NewsSection> _sections;
 
   @override
@@ -510,7 +507,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     _updateRecentNews();
   }
 
-  // Initialize sections dynamically from NewsSources
   void _initializeSections() {
     _sections = [
       NewsSection(
@@ -551,8 +547,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         title: 'France',
         subtitle: 'French news • ${NewsSources.french.length} sources',
         sources: NewsSources.french,
-        accentColor: const Color(0xFF0055A4), // French Blue
-        onViewAll: widget.onViewFrance, // Add this callback
+        accentColor: const Color(0xFF0055A4),
+        onViewAll: widget.onViewFrance,
       ),
       NewsSection(
         emoji: '🇮🇷',
@@ -769,7 +765,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       slivers: [
         SliverToBoxAdapter(child: _buildModernHeader()),
         SliverToBoxAdapter(child: _buildQuickStatsRow()),
-        // Dynamic sections from NewsSources
         ..._sections.map((section) => _buildModernSection(
               emoji: section.emoji,
               title: section.title,
@@ -784,7 +779,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // Helper to get articles based on section title
   List<RssItemModel> _getArticlesForSection(String title) {
     switch (title) {
       case 'World News':
@@ -1056,12 +1050,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             _buildStatChip('🇩🇿', widget.algerianCount, widget.onViewAlgeria,
                 const Color(0xFF3498DB), NewsSources.algerian.length),
             const SizedBox(width: 10),
-            _buildStatChip(
-                '🇫🇷',
-                widget.frenchCount,
-                widget.onViewFrance, // NEW
-                const Color(0xFF0055A4),
-                NewsSources.french.length),
+            _buildStatChip('🇫🇷', widget.frenchCount, widget.onViewFrance,
+                const Color(0xFF0055A4), NewsSources.french.length),
             const SizedBox(width: 10),
             _buildStatChip('🇮🇷', widget.iranianCount, widget.onViewIran,
                 const Color(0xFF9B59B6), NewsSources.iranian.length),

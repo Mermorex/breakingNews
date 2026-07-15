@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:news_app/core/utils/responsive.dart';
 import 'package:news_app/presentation/screens/dashboard/dashboard_screen.dart';
 import 'package:news_app/presentation/screens/france_news_screen.dart';
 import 'package:news_app/presentation/screens/irannews_screen.dart';

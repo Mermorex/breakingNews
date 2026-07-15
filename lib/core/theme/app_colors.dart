@@ -20,4 +20,8 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
+
+  static Color? get accentEmerald => null;
+
+  static Color? get textMuted => null;
 }

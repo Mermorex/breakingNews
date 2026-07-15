@@ -12,25 +12,28 @@ import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/presentation/screens/source_detail_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:html' as html;
 
-// --- FRENCH COLOR PALETTE (Blue/White/Red theme) ---
+// --- FRENCH COLOR PALETTE ---
 class FrenchAppColors {
   static const Color bgDark = Color(0xFF0B0E14);
   static const Color cardBg = Color(0xFF151A25);
   static const Color cardBgElevated = Color(0xFF1E2532);
-  static const Color accentBlue = Color(0xFF0055A4); // French Blue
-  static const Color accentRed = Color(0xFFEF4135); // French Red
-  static const Color accentWhite = Color(0xFFFFFFFF); // French White
-  static const Color accentGold = Color(0xFFFFD700); // Keep gold for highlights
+
+  // French Tricolore Theme
+  static const Color accentBlue = Color(0xFF0055A4);
+  static const Color accentRed = Color(0xFFEF4135);
+  static const Color accentWhite = Color(0xFFFFFFFF);
+
+  static const Color accentGold = Color(0xFFFFD700); // Retained for variety
   static const Color accentPurple = Color(0xFF8B5CF6);
+
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFFA0AEC0);
   static const Color textMuted = Color(0xFF64748B);
   static const Color borderSubtle = Color(0xFF2D3748);
 }
 
-// --- UNIFIED FONT HELPER (Same as Tunisian) ---
+// --- UNIFIED FONT HELPER ---
 class AppFonts {
   static bool containsArabic(String text) {
     return RegExp(
@@ -114,21 +117,10 @@ class AppFonts {
   }
 }
 
-// --- ENHANCED SOURCE EXTRACTOR (Extended for French sources) ---
+// --- ENHANCED SOURCE EXTRACTOR ---
 class SourceExtractor {
   static final Map<String, String> _domainMappings = {
-    'mosaiquefm': 'Mosaïque FM',
-    'lapresse': 'La Presse',
-    'jawharafm': 'Jawhara FM',
-    'diwanfm': 'Diwan FM',
-    'radioexpressfm': 'Express FM',
-    'tunisiefocus': 'Tunisie Focus',
-    'babnet': 'Babnet',
-    'businessnews': 'Business News',
-    'nawaat': 'Nawaat',
-    'yabiladi': 'Yabiladi',
-    'alchourouk': 'Al Chourouk',
-    // French sources
+    // French Sources
     'lemonde': 'Le Monde',
     'lefigaro': 'Le Figaro',
     'liberation': 'Libération',
@@ -143,6 +135,13 @@ class SourceExtractor {
     'ladepeche': 'La Dépêche',
     'nicematin': 'Nice Matin',
     'lamarseillaise': 'La Marseillaise',
+    'sudouest': 'Sud Ouest',
+    'lacroix': 'La Croix',
+    'les echos': 'Les Echos',
+    // Fallback Tunisian/Other
+    'mosaiquefm': 'Mosaïque FM',
+    'lapresse': 'La Presse',
+    'jawharafm': 'Jawhara FM',
   };
 
   static String extractSource(String? rssSource, String articleUrl) {
@@ -185,7 +184,7 @@ class SourceExtractor {
   }
 }
 
-// --- FULL AI RECAP WIDGET (Same design) ---
+// --- FULL AI RECAP WIDGET ---
 class FullAiRecap extends StatelessWidget {
   final String summary;
   final bool isArabic;
@@ -229,15 +228,16 @@ class FullAiRecap extends StatelessWidget {
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                      FrenchAppColors.accentPurple),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(FrenchAppColors.accentBlue),
                 ),
               ),
               const SizedBox(width: 12),
               Text(
-                isArabic ? 'جاري التلخيص...' : 'Generating summary...',
+                isArabic ? 'جاري التلخيص...' : 'Génération du résumé...',
                 style: AppFonts.body(
-                  text: isArabic ? 'جاري التلخيص...' : 'Generating summary...',
+                  text:
+                      isArabic ? 'جاري التلخيص...' : 'Génération du résumé...',
                   fontSize: 13,
                   color: FrenchAppColors.textSecondary,
                 ),
@@ -252,7 +252,7 @@ class FullAiRecap extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            FrenchAppColors.accentPurple.withOpacity(0.15),
+            FrenchAppColors.accentBlue.withOpacity(0.15),
             FrenchAppColors.cardBgElevated.withOpacity(0.8),
           ],
           begin: Alignment.topLeft,
@@ -260,12 +260,12 @@ class FullAiRecap extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: FrenchAppColors.accentPurple.withOpacity(0.4),
+          color: FrenchAppColors.accentBlue.withOpacity(0.4),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: FrenchAppColors.accentPurple.withOpacity(0.15),
+            color: FrenchAppColors.accentBlue.withOpacity(0.15),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -282,7 +282,7 @@ class FullAiRecap extends StatelessWidget {
                 color: Colors.black.withOpacity(0.2),
                 border: Border(
                   bottom: BorderSide(
-                    color: FrenchAppColors.accentPurple.withOpacity(0.2),
+                    color: FrenchAppColors.accentBlue.withOpacity(0.2),
                   ),
                 ),
               ),
@@ -292,7 +292,7 @@ class FullAiRecap extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: FrenchAppColors.accentPurple.withOpacity(0.3),
+                      color: FrenchAppColors.accentBlue.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -301,15 +301,15 @@ class FullAiRecap extends StatelessWidget {
                         Icon(
                           Icons.auto_awesome,
                           size: 14,
-                          color: FrenchAppColors.accentPurple,
+                          color: FrenchAppColors.accentWhite,
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          isArabic ? 'ملخص ذكي' : 'AI Recap',
+                          isArabic ? 'ملخص ذكي' : 'Résumé IA',
                           style: AppFonts.caption(
-                            text: isArabic ? 'ملخص ذكي' : 'AI Recap',
+                            text: isArabic ? 'ملخص ذكي' : 'Résumé IA',
                             fontSize: 11,
-                            color: FrenchAppColors.accentPurple,
+                            color: FrenchAppColors.accentWhite,
                           ).copyWith(fontWeight: FontWeight.w700),
                         ),
                       ],
@@ -368,6 +368,7 @@ class FrenchNewsScreen extends StatefulWidget {
 class _FrenchNewsScreenState extends State<FrenchNewsScreen>
     with TickerProviderStateMixin {
   final RssRemoteDataSource _dataSource = RssRemoteDataSource();
+  // Make sure to define 'french' in your NewsSources model or use a hardcoded list here
   List<NewsSource> get _rssSources => NewsSources.french;
 
   final Map<int, List<RssItemModel>> _dashboardData = {};
@@ -633,14 +634,13 @@ class _FrenchNewsScreenState extends State<FrenchNewsScreen>
     super.dispose();
   }
 
+  // Fixed: Removed dart:html dependency for cross-platform support
   Future<void> _launchUrl(String url) async {
-    try {
-      html.window.open(url, '_blank');
-    } catch (e) {
-      final Uri uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
+    final Uri uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      debugPrint('Could not launch $url');
     }
   }
 
@@ -722,7 +722,7 @@ class _FrenchNewsScreenState extends State<FrenchNewsScreen>
         gradient: LinearGradient(
           colors: [
             FrenchAppColors.accentBlue.withOpacity(0.9),
-            FrenchAppColors.accentRed.withOpacity(0.7),
+            FrenchAppColors.accentRed.withOpacity(0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -838,7 +838,7 @@ class _FrenchNewsScreenState extends State<FrenchNewsScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.circle, size: 6, color: FrenchAppColors.accentGold),
+          Icon(Icons.circle, size: 6, color: FrenchAppColors.accentRed),
           const SizedBox(width: 12),
           Text(
             text,
@@ -909,11 +909,10 @@ class _FrenchNewsScreenState extends State<FrenchNewsScreen>
       decoration: BoxDecoration(
         color: FrenchAppColors.cardBg,
         borderRadius: BorderRadius.circular(20),
-        border:
-            Border.all(color: FrenchAppColors.accentPurple.withOpacity(0.5)),
+        border: Border.all(color: FrenchAppColors.accentBlue.withOpacity(0.5)),
         boxShadow: [
           BoxShadow(
-              color: FrenchAppColors.accentPurple.withOpacity(0.1),
+              color: FrenchAppColors.accentBlue.withOpacity(0.1),
               blurRadius: 12,
               offset: const Offset(0, 4)),
         ],
@@ -931,8 +930,8 @@ class _FrenchNewsScreenState extends State<FrenchNewsScreen>
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(colors: [
-                      FrenchAppColors.accentPurple,
-                      FrenchAppColors.accentBlue
+                      FrenchAppColors.accentBlue,
+                      FrenchAppColors.accentRed
                     ]),
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -947,11 +946,11 @@ class _FrenchNewsScreenState extends State<FrenchNewsScreen>
                       Text(
                         _isArabicContent
                             ? 'ماذا حدث اليوم؟'
-                            : 'What Happened Today?',
+                            : 'Quoi de neuf aujourd\'hui ?',
                         style: AppFonts.title(
                             text: _isArabicContent
                                 ? 'ماذا حدث اليوم؟'
-                                : 'What Happened Today?',
+                                : 'Quoi de neuf aujourd\'hui ?',
                             fontSize: 16,
                             color: Colors.white),
                       ),
@@ -960,10 +959,10 @@ class _FrenchNewsScreenState extends State<FrenchNewsScreen>
                         isDisabled
                             ? (_isArabicContent
                                 ? 'جاري تحميل الأخبار...'
-                                : 'Loading news feed...')
+                                : 'Chargement...')
                             : (_isArabicContent
                                 ? 'ملخص ذكي للأخبار الفرنسية'
-                                : 'AI summary of French events'),
+                                : 'Résumé IA de l\'actualité'),
                         style: AppFonts.body(
                             text: '',
                             fontSize: 12,
@@ -977,12 +976,12 @@ class _FrenchNewsScreenState extends State<FrenchNewsScreen>
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                          color: FrenchAppColors.accentPurple, strokeWidth: 2))
+                          color: FrenchAppColors.accentBlue, strokeWidth: 2))
                 else
                   Icon(Icons.arrow_forward_ios_rounded,
                       color: isDisabled
                           ? Colors.white24
-                          : FrenchAppColors.accentPurple,
+                          : FrenchAppColors.accentBlue,
                       size: 18),
               ],
             ),
@@ -1508,12 +1507,12 @@ class _FrenchMainArticleCardState extends State<_FrenchMainArticleCard>
                                 gradient: LinearGradient(
                                   colors: _isExpanded
                                       ? [
-                                          FrenchAppColors.accentPurple,
-                                          FrenchAppColors.accentPurple
+                                          FrenchAppColors.accentBlue,
+                                          FrenchAppColors.accentBlue
                                               .withOpacity(0.8)
                                         ]
                                       : [
-                                          FrenchAppColors.accentGold,
+                                          FrenchAppColors.accentRed,
                                           widget.accentColor
                                         ],
                                 ),
@@ -1521,7 +1520,7 @@ class _FrenchMainArticleCardState extends State<_FrenchMainArticleCard>
                                 boxShadow: [
                                   BoxShadow(
                                     color: (_isExpanded
-                                            ? FrenchAppColors.accentPurple
+                                            ? FrenchAppColors.accentBlue
                                             : widget.accentColor)
                                         .withOpacity(0.3),
                                     blurRadius: 8,
@@ -1770,9 +1769,8 @@ class _FrenchSideArticleCardState extends State<_FrenchSideArticleCard>
                           gradient: LinearGradient(
                             colors: _isExpanded
                                 ? [
-                                    FrenchAppColors.accentPurple,
-                                    FrenchAppColors.accentPurple
-                                        .withOpacity(0.8)
+                                    FrenchAppColors.accentBlue,
+                                    FrenchAppColors.accentBlue.withOpacity(0.8)
                                   ]
                                 : [
                                     widget.accentColor.withOpacity(0.8),
