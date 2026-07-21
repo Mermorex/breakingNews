@@ -220,58 +220,53 @@ class NewsSources {
   // IRANIAN SOURCES (IR)
   // ==========================================
   static final List<NewsSource> iranian = [
+    // --- ENGLISH (Verified Working) ---
     NewsSource(
-      name: 'Mehr News english',
-      url: 'https://en.mehrnews.com/rss',
+      name: 'IRNA English',
+      url: 'https://en.irna.ir/rss',
+      type: SourceType.rss,
       countryCode: 'IR',
-    ),
-    NewsSource(
-      name: 'Mehr News persian',
-      url: 'https://www.mehrnews.com/rss',
-      countryCode: 'IR',
-    ),
-    NewsSource(
-      name: 'Tasnim News',
-      url: 'https://www.tasnimnews.ir/en/rss/feed/0/0/8/1/TopStories',
-      countryCode: 'IR',
+      category: 'general',
     ),
     NewsSource(
       name: 'Tehran Times',
-      url: 'https://www.tehrantimes.com/rss',
+      url: 'https://tehrantimes.com/rss',
+      type: SourceType.rss,
       countryCode: 'IR',
+      category: 'general',
     ),
-    NewsSource(
-      name: 'Asriran',
-      url: 'https://www.asriran.com/fa/rss/allnews',
-      countryCode: 'IR',
-    ),
-    NewsSource(
-      name: 'Fars News',
-      url: 'https://www.farsnews.ir/en/rss',
-      countryCode: 'IR',
-    ),
-    NewsSource(
-      name: 'UNA-OIC',
-      url: 'https://una-oic.org/en/feed/',
-      countryCode: 'IR', // Using IR tag to group with regional news
-    ),
-    NewsSource(
-      name: 'Iran International',
-      // STRATEGY: They have no official RSS. We use Google News RSS Mirror.
-      // This URL directly queries Google News for "site:iranintl.com"
-      url:
-          'https://news.google.com/rss/search?q=site:iranintl.com&hl=en-US&gl=US&ceid=US:en',
-      countryCode: 'IR',
-    ),
-    NewsSource(
-      name: 'tabnak',
-      // STRATEGY: They have no official RSS. We use Google News RSS Mirror.
-      // This URL directly queries Google News for "site:iranintl.com"
-      url: 'https://www.tabnak.ir/fa/rss/allnews',
-      countryCode: 'IR',
-    ),
-  ];
 
+    // --- ARABIC (Official Sources) ---
+    NewsSource(
+      name: 'IRNA Arabic',
+      url: 'https://ar.irna.ir/rss',
+      type: SourceType.rss,
+      countryCode: 'IR',
+      category: 'general',
+    ),
+
+    // --- PERSIAN/FARSI (Official Sources) ---
+    NewsSource(
+      name: 'IRNA Persian',
+      url: 'https://www.irna.ir/rss',
+      type: SourceType.rss,
+      countryCode: 'IR',
+      category: 'general',
+    ),
+    NewsSource(
+      name: 'Mehr News Persian',
+      url: 'https://www.mehrnews.com/rss',
+      type: SourceType.rss,
+      countryCode: 'IR',
+      category: 'general',
+    ),
+
+    // --- PROBLEMATIC / REMOVED SOURCES ---
+    // Fars News: IRGC-linked, heavily blocked
+    // Tasnim News: Domain changed to .ir, blocked by sanctions
+    // Mehr News Arabic: Not working
+    // Press TV: Sanctions-blocked
+  ];
   // ==========================================
   // INTERNATIONAL SOURCES
   // ==========================================
