@@ -13,8 +13,8 @@ class MistralService {
         content.length > 3000 ? content.substring(0, 3000) : content;
 
     final String instruction = isArabic
-        ? "لخص هذا الخبر في 2-3 جمل باللغة العربية:"
-        : "Summarize this news in 2-3 sentences in English:";
+        ? "لخص هذا الخبر في 4-3 جمل باللغة العربية:"
+        : "Summarize this news in 4-3 sentences in English:";
 
     try {
       final response = await http
