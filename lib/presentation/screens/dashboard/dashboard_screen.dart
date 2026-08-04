@@ -1,11 +1,8 @@
-import 'dart:async';
 import 'dart:convert';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
-import 'package:news_app/presentation/screens/dashboard/widgets/news_section_block.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:html' as html;
 import 'constants/app_colors.dart';
@@ -13,8 +10,9 @@ import 'constants/app_fonts.dart';
 import 'utils/source_extractor.dart';
 import 'widgets/dashboard_header.dart';
 import 'widgets/quick_stats_row.dart';
+import 'widgets/news_section_block.dart';
 
-// --- Section configuration (easy to reorder/add/remove here) ---
+// --- SECTION CONFIGURATION MODEL ---
 class _SectionConfig {
   final String emoji;
   final String title;
@@ -81,16 +79,11 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
-    with TickerProviderStateMixin {
+class _DashboardScreenState extends State<DashboardScreen> {
   String _currentLangMode = 'original';
   final Map<String, String> _translationCache = {};
   final Set<String> _loadingTranslations = {};
-
-  AnimationController? _tickerController;
-  double _textWidth = 0.0;
-  String _currentTickerText = "";
-  List<RssItemModel> _recentNews = [];
+  int _selectedCategoryIndex = 0;
 
   late final List<_SectionConfig> _sections;
 
@@ -98,7 +91,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   void initState() {
     super.initState();
     _initializeSections();
-    _updateRecentNews();
   }
 
   void _initializeSections() {
@@ -155,13 +147,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     ];
   }
 
-  @override
-  void didUpdateWidget(covariant DashboardScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.worldNewsArticles.length != widget.worldNewsArticles.length ||
-        oldWidget.tunisianArticles.length != widget.tunisianArticles.length) {
-      _updateRecentNews();
-    }
+  // ==================== TOP STORY ====================
+
+  RssItemModel? get _topStory {
+    final allItems = [
+      ...widget.worldNewsArticles,
+      ...widget.tunisianArticles,
+      ...widget.moroccanArticles,
+      ...widget.algerianArticles,
+      ...widget.iranianArticles,
+      ...widget.frenchArticles,
+    ];
+    if (allItems.isEmpty) return null;
+    allItems.sort((a, b) => (b.publishedAt ?? DateTime(1970))
+        .compareTo(a.publishedAt ?? DateTime(1970)));
+    return allItems.first;
   }
 
   // ==================== NEWS SELECTION ====================
@@ -185,56 +185,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  // ==================== TICKER ====================
-
-  void _updateRecentNews() {
-    final allItems = [
-      ...widget.worldNewsArticles,
-      ...widget.tunisianArticles,
-      ...widget.moroccanArticles,
-      ...widget.algerianArticles,
-      ...widget.iranianArticles,
-    ];
-    allItems.sort((a, b) {
-      final dateA = a.publishedAt ?? DateTime(1970);
-      final dateB = b.publishedAt ?? DateTime(1970);
-      return dateB.compareTo(dateA);
-    });
-    _recentNews = allItems.take(10).toList();
-
-    if (_currentLangMode == 'original') {
-      _currentTickerText = _recentNews.map((e) => e.title).join('   •   ');
-      _initTicker();
-    } else {
-      _translateTickerText();
-    }
-  }
-
-  void _initTicker() {
-    if (_currentTickerText.isEmpty) return;
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: _currentTickerText,
-        style: AppFonts.body(
-          text: _currentTickerText,
-          fontSize: 15,
-          color: Colors.white,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      maxLines: 1,
-      textDirection: ui.TextDirection.ltr,
-    )..layout();
-    _textWidth = textPainter.width;
-    final duration = Duration(milliseconds: ((_textWidth / 80) * 1000).round());
-    _tickerController?.dispose();
-    _tickerController = AnimationController(
-      vsync: this,
-      duration: duration,
-    )..repeat();
-    if (mounted) setState(() {});
-  }
-
   // ==================== TRANSLATION ====================
 
   void _toggleLanguage() {
@@ -247,29 +197,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         _currentLangMode = 'original';
       }
     });
-
-    if (_currentLangMode == 'original') {
-      _currentTickerText = _recentNews.map((e) => e.title).join('   •   ');
-      _initTicker();
-    } else {
-      _translateTickerText();
-    }
-  }
-
-  Future<void> _translateTickerText() async {
-    if (_recentNews.isEmpty) return;
-    final titles = _recentNews.map((e) => e.title).toList();
-    List<String> translatedTitles = [];
-    for (var title in titles) {
-      translatedTitles.add(await _getTranslatedText(title, _currentLangMode));
-    }
-    if ((_currentLangMode == 'arabic' || _currentLangMode == 'english') &&
-        mounted) {
-      setState(() {
-        _currentTickerText = translatedTitles.join('   •   ');
-      });
-      _initTicker();
-    }
   }
 
   String _formatMixedText(String text) {
@@ -374,65 +301,64 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  // ==================== LIFECYCLE ====================
-
-  @override
-  void dispose() {
-    _tickerController?.dispose();
-    super.dispose();
-  }
-
   // ==================== BUILD ====================
 
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        // Header with ticker
+        // 1. Cinematic Hero Header
         SliverToBoxAdapter(
           child: DashboardHeader(
-            totalArticles: widget.totalArticles,
+            topArticle: _topStory,
+            getDisplayTitle: _getDisplayTitle,
+            getDisplaySource: _getDisplaySource,
+            onLaunchUrl: _launchUrl,
+          ),
+        ),
+
+        // 2. Sleek Pill Filters & Language Toggle
+        SliverToBoxAdapter(
+          child: QuickStatsRow(
+            selectedIndex: _selectedCategoryIndex,
+            onCategoryTap: (index) {
+              setState(() => _selectedCategoryIndex = index);
+              final viewCallbacks = [
+                widget.onViewWorldNews,
+                widget.onViewTunisia,
+                widget.onViewMorocco,
+                widget.onViewAlgeria,
+                widget.onViewFrance,
+                widget.onViewIran
+              ];
+              viewCallbacks[index]();
+            },
             currentLangMode: _currentLangMode,
-            tickerText: _currentTickerText,
-            textWidth: _textWidth,
-            tickerController: _tickerController,
             onToggleLanguage: _toggleLanguage,
           ),
         ),
 
-        // Quick stats chips
-        SliverToBoxAdapter(
-          child: QuickStatsRow(
-            tunisianCount: widget.tunisianCount,
-            moroccanCount: widget.moroccanCount,
-            algerianCount: widget.algerianCount,
-            frenchCount: widget.frenchCount,
-            iranianCount: widget.iranianCount,
-            onViewTunisia: widget.onViewTunisia,
-            onViewMorocco: widget.onViewMorocco,
-            onViewAlgeria: widget.onViewAlgeria,
-            onViewFrance: widget.onViewFrance,
-            onViewIran: widget.onViewIran,
-          ),
-        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 10)),
 
-        // News sections
-        ..._sections.map((section) => NewsSectionBlock(
-              emoji: section.emoji,
-              title: section.title,
-              subtitle: section.subtitle,
-              articles: _getArticlesForSection(section.title),
-              onViewAll: section.onViewAll,
-              accentColor: section.accentColor,
-              isLoading: widget.isLoading,
-              hasAnyArticles: widget.totalArticles > 0,
-              currentLangMode: _currentLangMode,
-              getDisplayTitle: _getDisplayTitle,
-              getDisplaySource: _getDisplaySource,
-              onLaunchUrl: _launchUrl,
+        // 3. The Journal Sections (Stacked vertically like a real newspaper)
+        ..._sections.map((section) => SliverToBoxAdapter(
+              child: NewsSectionBlock(
+                emoji: section.emoji,
+                title: section.title,
+                subtitle: section.subtitle,
+                articles: _getArticlesForSection(section.title),
+                onViewAll: section.onViewAll,
+                accentColor: section.accentColor,
+                isLoading: widget.isLoading,
+                hasAnyArticles: widget.totalArticles > 0,
+                currentLangMode: _currentLangMode,
+                getDisplayTitle: _getDisplayTitle,
+                getDisplaySource: _getDisplaySource,
+                onLaunchUrl: _launchUrl,
+              ),
             )),
 
-        const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+        const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
       ],
     );
   }

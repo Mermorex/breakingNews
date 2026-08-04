@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:news_app/core/utils/responsive.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart' as intl;
+import 'package:news_app/data/grok_service.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
-import 'expandable_featured_card.dart';
-import 'expandable_compact_card.dart';
 
-class NewsSectionBlock extends StatelessWidget {
+class NewsSectionBlock extends StatefulWidget {
   final String emoji;
   final String title;
   final String subtitle;
@@ -37,254 +37,451 @@ class NewsSectionBlock extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
+  State<NewsSectionBlock> createState() => _NewsSectionBlockState();
+}
 
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding:
-            EdgeInsets.fromLTRB(isMobile ? 16 : 32, 28, isMobile ? 16 : 32, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- Section header ---
-            Row(
+class _NewsSectionBlockState extends State<NewsSectionBlock> {
+  final Set<int> _expandedRecaps = {};
+  final Map<int, String> _summaries = {};
+  final Set<int> _loadingSummaries = {};
+
+  Future<void> _toggleRecap(int index) async {
+    if (_loadingSummaries.contains(index)) return;
+
+    if (_expandedRecaps.contains(index)) {
+      setState(() => _expandedRecaps.remove(index));
+      return;
+    }
+
+    setState(() {
+      _expandedRecaps.add(index);
+      _loadingSummaries.add(index);
+    });
+
+    try {
+      final article = widget.articles[index];
+      final result = await MistralService().summarizeArticle(
+        article.title,
+        article.description ?? '',
+        isArabic: widget.currentLangMode != 'english',
+      );
+      if (mounted) {
+        setState(() {
+          _summaries[index] = result;
+          _loadingSummaries.remove(index);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _summaries[index] = "Could not generate summary.";
+          _loadingSummaries.remove(index);
+        });
+      }
+    }
+  }
+
+  String _formatTimeAgo(DateTime? date) {
+    if (date == null) return '';
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    return intl.DateFormat('MMM d').format(date);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isArabicSection = widget.currentLangMode == 'arabic';
+
+    if (widget.isLoading && widget.articles.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: Center(
+            child: CircularProgressIndicator(color: AppColors.accentOrange)),
+      );
+    }
+
+    if (widget.articles.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: widget.accentColor.withOpacity(0.5), width: 2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // --- JOURNAL HEADER ---
+          Padding(
+            padding: const EdgeInsets.only(top: 16, bottom: 20),
+            child: Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: accentColor.withOpacity(0.3),
-                      width: 1,
+                Text(widget.emoji, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Text(
+                  widget.title.toUpperCase(),
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: widget.accentColor,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: widget.onViewAll,
+                  child: Text(
+                    'VIEW ALL',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textMuted,
+                      letterSpacing: 1.2,
                     ),
                   ),
-                  child: Center(
-                    child: Text(emoji, style: const TextStyle(fontSize: 24)),
-                  ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: AppFonts.title(
-                          text: title,
-                          fontSize: 20,
-                          color: Colors.white,
-                        ).copyWith(letterSpacing: -0.5),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: AppFonts.body(
-                          text: subtitle,
-                          fontSize: 13,
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _buildViewAllButton(),
               ],
             ),
-            const SizedBox(height: 20),
+          ),
 
-            // --- Section content ---
-            if (isLoading && articles.isEmpty)
-              _buildLoadingState()
-            else if (articles.isNotEmpty)
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth < 700) {
-                    return Column(
-                      children: [
-                        ExpandableFeaturedCard(
-                          article: articles.first,
-                          accentColor: accentColor,
-                          isArabic: _isArabic(articles.first),
-                          isSummaryArabic: currentLangMode != 'english',
-                          getDisplayTitle: getDisplayTitle,
-                          getDisplaySource: getDisplaySource,
-                          onLaunchUrl: onLaunchUrl,
-                        ),
-                        const SizedBox(height: 12),
-                        ...articles
-                            .skip(1)
-                            .take(2)
-                            .map((article) => ExpandableCompactCard(
-                                  article: article,
-                                  accentColor: accentColor,
-                                  isArabic: _isArabic(article),
-                                  isSummaryArabic: currentLangMode != 'english',
-                                  getDisplayTitle: getDisplayTitle,
-                                  getDisplaySource: getDisplaySource,
-                                  onLaunchUrl: onLaunchUrl,
-                                )),
-                      ],
-                    );
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 5,
-                        child: ExpandableFeaturedCard(
-                          article: articles.first,
-                          accentColor: accentColor,
-                          isArabic: _isArabic(articles.first),
-                          isSummaryArabic: currentLangMode != 'english',
-                          getDisplayTitle: getDisplayTitle,
-                          getDisplaySource: getDisplaySource,
-                          onLaunchUrl: onLaunchUrl,
-                        ),
+          // --- LEAD STORY (Full Width) ---
+          _buildLeadArticle(0, isArabicSection),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(
+                color: AppColors.borderSubtle,
+                thickness: 1,
+                indent: 10,
+                endIndent: 10),
+          ),
+
+          // --- TWO COLUMN GRID ---
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 500) {
+                return Column(
+                  children: [
+                    for (int i = 1; i < widget.articles.length; i++)
+                      _buildColumnArticle(i, isArabicSection,
+                          isLast: i == widget.articles.length - 1),
+                  ],
+                );
+              }
+
+              final int midPoint = (1 + widget.articles.length) ~/ 2;
+              final leftColumnArticles = widget.articles.sublist(1, midPoint);
+              final rightColumnArticles = widget.articles.sublist(midPoint);
+
+              return IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < leftColumnArticles.length; i++)
+                            _buildColumnArticle(
+                              1 + i,
+                              isArabicSection,
+                              isLast: i == leftColumnArticles.length - 1 &&
+                                  rightColumnArticles.isEmpty,
+                            ),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 4,
-                        child: Column(
-                          children: [
-                            if (articles.length > 1)
-                              ExpandableCompactCard(
-                                article: articles[1],
-                                accentColor: accentColor,
-                                isArabic: _isArabic(articles[1]),
-                                isSummaryArabic: currentLangMode != 'english',
-                                getDisplayTitle: getDisplayTitle,
-                                getDisplaySource: getDisplaySource,
-                                onLaunchUrl: onLaunchUrl,
-                              ),
-                            if (articles.length > 2) const SizedBox(height: 12),
-                            if (articles.length > 2)
-                              ExpandableCompactCard(
-                                article: articles[2],
-                                accentColor: accentColor,
-                                isArabic: _isArabic(articles[2]),
-                                isSummaryArabic: currentLangMode != 'english',
-                                getDisplayTitle: getDisplayTitle,
-                                getDisplaySource: getDisplaySource,
-                                onLaunchUrl: onLaunchUrl,
-                              ),
-                          ],
+                    ),
+                    Container(
+                      width: 1,
+                      color: AppColors.borderSubtle.withOpacity(0.5),
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < rightColumnArticles.length; i++)
+                            _buildColumnArticle(
+                              midPoint + i,
+                              isArabicSection,
+                              isLast: i == rightColumnArticles.length - 1,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- LEAD ARTICLE WIDGET ---
+  Widget _buildLeadArticle(int index, bool isArabicSection) {
+    final article = widget.articles[index];
+    final isArabic = isArabicSection || AppFonts.containsArabic(article.title);
+    final isExpanded = _expandedRecaps.contains(index);
+    final isLoading = _loadingSummaries.contains(index);
+
+    return GestureDetector(
+      onTap: () => widget.onLaunchUrl(article.link),
+      child: Column(
+        crossAxisAlignment:
+            isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.getDisplayTitle(article),
+            style: AppFonts.title(
+              text: widget.getDisplayTitle(article),
+              fontSize: 22,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              height: 1.25,
+            ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            textAlign: isArabic ? TextAlign.right : TextAlign.left,
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment:
+                isArabic ? MainAxisAlignment.start : MainAxisAlignment.end,
+            children: [
+              Text(
+                widget.getDisplaySource(article),
+                style: AppFonts.caption(
+                  text: widget.getDisplaySource(article),
+                  fontSize: 11,
+                  color: widget.accentColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _formatTimeAgo(article.publishedAt),
+                style: AppFonts.caption(
+                  text: _formatTimeAgo(article.publishedAt),
+                  fontSize: 11,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // --- BIGGER AI RECAP BUTTON ---
+              GestureDetector(
+                onTap: () => _toggleRecap(index),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentPurple.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                        color: AppColors.accentPurple.withOpacity(0.4),
+                        width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_awesome,
+                          size: 16, color: AppColors.accentPurple),
+                      const SizedBox(width: 6),
+                      Text(
+                        'AI RECAP',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.accentPurple,
+                          letterSpacing: 0.8,
                         ),
                       ),
                     ],
-                  );
-                },
-              )
-            else if (!hasAnyArticles)
-              _buildLoadingState()
-            else
-              _buildEmptyState(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  bool _isArabic(RssItemModel article) {
-    return currentLangMode == 'arabic' ||
-        AppFonts.containsArabic(article.title);
-  }
-
-  Widget _buildViewAllButton() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onViewAll,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: accentColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: accentColor.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'View All',
-                style: AppFonts.caption(
-                  text: 'View All',
-                  fontSize: 12,
-                  color: accentColor,
+                  ),
                 ),
               ),
-              const SizedBox(width: 6),
-              Icon(Icons.arrow_forward_rounded, size: 14, color: accentColor),
             ],
           ),
-        ),
+
+          // --- BIGGER INLINE RECAP EXPANSION ---
+          if (isExpanded) ...[
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20), // Increased padding
+              decoration: BoxDecoration(
+                color: AppColors.cardBgElevated,
+                borderRadius: BorderRadius.circular(12),
+                border: Border(
+                    left: BorderSide(
+                        color: AppColors.accentPurple,
+                        width: 4)), // Thicker border
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      height: 40,
+                      child: Center(
+                          child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: AppColors.accentPurple))))
+                  : Text(
+                      _summaries[index] ?? '',
+                      style: AppFonts.body(
+                        text: _summaries[index] ?? '',
+                        fontSize: 15, // Bigger text
+                        color: AppColors.textSecondary,
+                        height: 1.7, // More line spacing
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                    ),
+            ),
+          ]
+        ],
       ),
     );
   }
 
-  Widget _buildLoadingState() {
-    return Container(
-      height: 320,
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Center(
+  // --- COLUMN ARTICLE WIDGET ---
+  Widget _buildColumnArticle(int index, bool isArabicSection,
+      {required bool isLast}) {
+    final article = widget.articles[index];
+    final isArabic = isArabicSection || AppFonts.containsArabic(article.title);
+    final isExpanded = _expandedRecaps.contains(index);
+    final isLoading = _loadingSummaries.contains(index);
+
+    return GestureDetector(
+      onTap: () => widget.onLaunchUrl(article.link),
+      child: Container(
+        padding: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          border: isLast
+              ? null
+              : Border(
+                  bottom: BorderSide(
+                      color: AppColors.borderSubtle.withOpacity(0.3),
+                      width: 1)),
+        ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment:
+              isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 40,
-              height: 40,
-              child: CircularProgressIndicator(
-                color: AppColors.accentOrange,
-                strokeWidth: 3,
-              ),
-            ),
-            const SizedBox(height: 16),
             Text(
-              'Loading articles...',
+              widget.getDisplayTitle(article),
               style: AppFonts.body(
-                text: 'Loading articles...',
+                text: widget.getDisplayTitle(article),
                 fontSize: 14,
-                color: AppColors.textMuted,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
               ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              textAlign: isArabic ? TextAlign.right : TextAlign.left,
             ),
-          ],
-        ),
-      ),
-    );
-  }
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment:
+                  isArabic ? MainAxisAlignment.start : MainAxisAlignment.end,
+              children: [
+                Text(
+                  widget.getDisplaySource(article),
+                  style: AppFonts.caption(
+                    text: widget.getDisplaySource(article),
+                    fontSize: 9,
+                    color: widget.accentColor,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _formatTimeAgo(article.publishedAt),
+                  style: AppFonts.caption(
+                    text: _formatTimeAgo(article.publishedAt),
+                    fontSize: 9,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                const Spacer(),
 
-  Widget _buildEmptyState() {
-    return Container(
-      height: 200,
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.borderSubtle),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.article_outlined, size: 48, color: AppColors.textMuted),
-            const SizedBox(height: 12),
-            Text(
-              'No articles found',
-              style: AppFonts.title(
-                text: 'No articles found',
-                fontSize: 15,
-                color: AppColors.textSecondary,
-              ),
+                // --- BIGGER AI RECAP BUTTON FOR COLUMNS ---
+                GestureDetector(
+                  onTap: () => _toggleRecap(index),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentPurple.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                          color: AppColors.accentPurple.withOpacity(0.3),
+                          width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.auto_awesome,
+                            size: 12, color: AppColors.accentPurple),
+                        const SizedBox(width: 4),
+                        Text(
+                          'RECAP',
+                          style: GoogleFonts.inter(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.accentPurple,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
+
+            // --- BIGGER INLINE RECAP EXPANSION FOR COLUMNS ---
+            if (isExpanded) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16), // Increased padding
+                decoration: BoxDecoration(
+                  color: AppColors.cardBgElevated,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border(
+                      left: BorderSide(
+                          color: AppColors.accentPurple,
+                          width: 3)), // Thicker border
+                ),
+                child: isLoading
+                    ? const SizedBox(
+                        height: 30,
+                        child: Center(
+                            child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.accentPurple))))
+                    : Text(
+                        _summaries[index] ?? '',
+                        style: AppFonts.body(
+                          text: _summaries[index] ?? '',
+                          fontSize: 13, // Bigger text
+                          color: AppColors.textSecondary,
+                          height: 1.6, // More line spacing
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: isArabic ? TextAlign.right : TextAlign.left,
+                      ),
+              ),
+            ]
           ],
         ),
       ),

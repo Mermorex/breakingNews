@@ -1,111 +1,150 @@
 import 'package:flutter/material.dart';
 import 'package:news_app/core/utils/responsive.dart';
-import 'package:news_app/data/models/news_source.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 
 class QuickStatsRow extends StatelessWidget {
-  final int tunisianCount;
-  final int moroccanCount;
-  final int algerianCount;
-  final int frenchCount;
-  final int iranianCount;
-  final VoidCallback onViewTunisia;
-  final VoidCallback onViewMorocco;
-  final VoidCallback onViewAlgeria;
-  final VoidCallback onViewFrance;
-  final VoidCallback onViewIran;
+  final int selectedIndex;
+  final ValueChanged<int> onCategoryTap;
+  final String currentLangMode;
+  final VoidCallback onToggleLanguage;
 
   const QuickStatsRow({
     super.key,
-    required this.tunisianCount,
-    required this.moroccanCount,
-    required this.algerianCount,
-    required this.frenchCount,
-    required this.iranianCount,
-    required this.onViewTunisia,
-    required this.onViewMorocco,
-    required this.onViewAlgeria,
-    required this.onViewFrance,
-    required this.onViewIran,
+    required this.selectedIndex,
+    required this.onCategoryTap,
+    required this.currentLangMode,
+    required this.onToggleLanguage,
   });
+
+  final List<Map<String, dynamic>> categories = const [
+    {'emoji': '🌍', 'label': 'World'},
+    {'emoji': '🇹🇳', 'label': 'Tunisia'},
+    {'emoji': '🇲🇦', 'label': 'Morocco'},
+    {'emoji': '🇩🇿', 'label': 'Algeria'},
+    {'emoji': '🇫🇷', 'label': 'France'},
+    {'emoji': '🇮🇷', 'label': 'Iran'},
+  ];
 
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
+
     return Container(
       margin:
           EdgeInsets.fromLTRB(isMobile ? 16 : 32, 20, isMobile ? 16 : 32, 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _buildStatChip('🇹🇳', tunisianCount, onViewTunisia,
-                AppColors.tunisiaAccent, NewsSources.tunisian.length),
-            const SizedBox(width: 10),
-            _buildStatChip('🇲🇦', moroccanCount, onViewMorocco,
-                AppColors.moroccoAccent, NewsSources.moroccan.length),
-            const SizedBox(width: 10),
-            _buildStatChip('🇩🇿', algerianCount, onViewAlgeria,
-                AppColors.algeriaAccent, NewsSources.algerian.length),
-            const SizedBox(width: 10),
-            _buildStatChip('🇫🇷', frenchCount, onViewFrance,
-                AppColors.franceAccent, NewsSources.french.length),
-            const SizedBox(width: 10),
-            _buildStatChip('🇮🇷', iranianCount, onViewIran,
-                AppColors.iranAccent, NewsSources.iranian.length),
-          ],
-        ),
+      child: Row(
+        children: [
+          // Horizontal Pills
+          Expanded(
+            child: SizedBox(
+              height: 50,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: categories.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final isSelected = index == selectedIndex;
+                  final cat = categories[index];
+
+                  return GestureDetector(
+                    onTap: () => onCategoryTap(index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.accentOrange.withOpacity(0.15)
+                            : AppColors.cardBg,
+                        borderRadius: BorderRadius.circular(50),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.accentOrange
+                              : AppColors.borderSubtle,
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                    color:
+                                        AppColors.accentOrange.withOpacity(0.2),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4))
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(cat['emoji'] as String,
+                              style: const TextStyle(fontSize: 16)),
+                          const SizedBox(width: 8),
+                          Text(
+                            cat['label'] as String,
+                            style: AppFonts.caption(
+                              text: cat['label'] as String,
+                              fontSize: 13,
+                              color: isSelected
+                                  ? AppColors.accentOrange
+                                  : AppColors.textSecondary,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Language Toggle (compacted to fit the row)
+          _buildLangToggle(),
+        ],
       ),
     );
   }
 
-  Widget _buildStatChip(String emoji, int count, VoidCallback onTap,
-      Color color, int sourceCount) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.3)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 8),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  count.toString(),
-                  style: AppFonts.title(
-                    text: count.toString(),
-                    fontSize: 15,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  '$sourceCount sources',
-                  style: AppFonts.caption(
-                    text: '$sourceCount sources',
-                    fontSize: 9,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ],
+  Widget _buildLangToggle() {
+    String displayText = currentLangMode == 'arabic'
+        ? 'AR'
+        : currentLangMode == 'english'
+            ? 'EN'
+            : 'ORIG';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onToggleLanguage,
+        borderRadius: BorderRadius.circular(50),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.cardBg,
+            borderRadius: BorderRadius.circular(50),
+            border: Border.all(color: AppColors.borderSubtle, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.translate, color: AppColors.textSecondary, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                displayText,
+                style: AppFonts.caption(
+                  text: displayText,
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ).copyWith(letterSpacing: 0.5),
+              ),
+            ],
+          ),
         ),
       ),
     );
