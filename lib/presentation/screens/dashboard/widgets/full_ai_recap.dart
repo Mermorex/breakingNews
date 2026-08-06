@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../constants/app_colors.dart';
+import 'package:news_app/core/theme/app_colors.dart' as theme;
 import '../constants/app_fonts.dart';
 
 class FullAiRecap extends StatelessWidget {
@@ -22,17 +22,10 @@ class FullAiRecap extends StatelessWidget {
       return Container(
         height: 100,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.accentPurple.withOpacity(0.2),
-              AppColors.accentEmerald.withOpacity(0.1),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
+          color: theme.AppColors.background,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppColors.accentPurple.withOpacity(0.3),
+            color: theme.AppColors.border,
             width: 1,
           ),
         ),
@@ -45,17 +38,18 @@ class FullAiRecap extends StatelessWidget {
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(AppColors.accentPurple),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      theme.AppColors.accentPurple),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Text(
                 isArabic ? 'جاري التلخيص...' : 'Generating summary...',
                 style: AppFonts.body(
                   text: isArabic ? 'جاري التلخيص...' : 'Generating summary...',
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
+                  fontSize: 15,
+                  color: theme.AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -66,40 +60,35 @@ class FullAiRecap extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.accentPurple.withOpacity(0.15),
-            AppColors.cardBgElevated.withOpacity(0.8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: theme.AppColors.surface, // Clean white background
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.accentPurple.withOpacity(0.4),
-          width: 1.5,
+          color: theme.AppColors.border, // Subtle gray border
+          width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accentPurple.withOpacity(0.15),
+            color: theme.AppColors.textPrimary
+                .withOpacity(0.05), // Very soft shadow
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // --- Header bar ---
+            // --- Clean Header bar ---
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.2),
+                color: theme.AppColors.background, // Light gray header bg
                 border: Border(
                   bottom: BorderSide(
-                    color: AppColors.accentPurple.withOpacity(0.2),
+                    color: theme.AppColors.border,
+                    width: 1,
                   ),
                 ),
               ),
@@ -107,24 +96,25 @@ class FullAiRecap extends StatelessWidget {
                 children: [
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.accentPurple.withOpacity(0.3),
+                      color: theme.AppColors.accentPurple.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.auto_awesome,
-                            size: 14, color: AppColors.accentPurple),
-                        const SizedBox(width: 6),
+                            size: 16, color: theme.AppColors.accentPurple),
+                        const SizedBox(width: 8),
                         Text(
                           isArabic ? 'ملخص ذكي' : 'AI Recap',
-                          style: AppFonts.caption(
+                          style: AppFonts.body(
                             text: isArabic ? 'ملخص ذكي' : 'AI Recap',
-                            fontSize: 11,
-                            color: AppColors.accentPurple,
-                          ).copyWith(fontWeight: FontWeight.w700),
+                            fontSize: 14,
+                            color: theme.AppColors.accentPurple,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ],
                     ),
@@ -132,32 +122,29 @@ class FullAiRecap extends StatelessWidget {
                   const Spacer(),
                   GestureDetector(
                     onTap: onClose,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
                       child: Icon(Icons.close,
-                          size: 16, color: AppColors.textMuted),
+                          size: 20, color: theme.AppColors.textSecondary),
                     ),
                   ),
                 ],
               ),
             ),
-            // --- Summary body ---
-            Flexible(
+            // --- Readable Summary body ---
+            Padding(
+              padding: const EdgeInsets.all(20.0),
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 child: Text(
                   summary,
                   style: AppFonts.body(
                     text: summary,
-                    fontSize: isArabic ? 14 : 13,
-                    color: AppColors.textPrimary,
+                    fontSize: 16, // Bigger text for readability
+                    color: theme.AppColors.textPrimary,
                     fontWeight: FontWeight.w500,
-                  ).copyWith(height: 1.7, letterSpacing: 0.2),
+                    height: 1.6, // Better line spacing
+                  ),
                   textAlign: isArabic ? TextAlign.right : TextAlign.left,
                 ),
               ),

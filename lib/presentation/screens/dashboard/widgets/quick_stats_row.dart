@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:news_app/core/theme/app_colors.dart' as theme;
 import 'package:news_app/core/utils/responsive.dart';
-import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 
 class QuickStatsRow extends StatelessWidget {
@@ -32,44 +32,45 @@ class QuickStatsRow extends StatelessWidget {
 
     return Container(
       margin:
-          EdgeInsets.fromLTRB(isMobile ? 16 : 32, 20, isMobile ? 16 : 32, 8),
+          EdgeInsets.fromLTRB(isMobile ? 16 : 32, 24, isMobile ? 16 : 32, 8),
       child: Row(
         children: [
           // Horizontal Pills
           Expanded(
             child: SizedBox(
-              height: 50,
+              height: 52,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: categories.length,
-                separatorBuilder: (context, index) => const SizedBox(width: 10),
+                separatorBuilder: (context, index) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   final isSelected = index == selectedIndex;
                   final cat = categories[index];
+                  final label = cat['label'] as String;
 
                   return GestureDetector(
                     onTap: () => onCategoryTap(index),
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
+                      duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
+                          horizontal: 20, vertical: 12),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppColors.accentOrange.withOpacity(0.15)
-                            : AppColors.cardBg,
+                            ? theme.AppColors.textPrimary
+                            : theme.AppColors.surface,
                         borderRadius: BorderRadius.circular(50),
                         border: Border.all(
                           color: isSelected
-                              ? AppColors.accentOrange
-                              : AppColors.borderSubtle,
-                          width: isSelected ? 1.5 : 1,
+                              ? theme.AppColors.textPrimary
+                              : theme.AppColors.border,
+                          width: 1,
                         ),
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                    color:
-                                        AppColors.accentOrange.withOpacity(0.2),
-                                    blurRadius: 12,
+                                    color: theme.AppColors.textPrimary
+                                        .withOpacity(0.15),
+                                    blurRadius: 8,
                                     offset: const Offset(0, 4))
                               ]
                             : null,
@@ -78,16 +79,16 @@ class QuickStatsRow extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(cat['emoji'] as String,
-                              style: const TextStyle(fontSize: 16)),
-                          const SizedBox(width: 8),
+                              style: const TextStyle(fontSize: 18)),
+                          const SizedBox(width: 10),
                           Text(
-                            cat['label'] as String,
-                            style: AppFonts.caption(
-                              text: cat['label'] as String,
-                              fontSize: 13,
+                            label,
+                            style: AppFonts.body(
+                              text: label,
+                              fontSize: 15,
                               color: isSelected
-                                  ? AppColors.accentOrange
-                                  : AppColors.textSecondary,
+                                  ? Colors.white
+                                  : theme.AppColors.textSecondary,
                               fontWeight: isSelected
                                   ? FontWeight.w700
                                   : FontWeight.w500,
@@ -101,10 +102,8 @@ class QuickStatsRow extends StatelessWidget {
               ),
             ),
           ),
-
-          const SizedBox(width: 12),
-
-          // Language Toggle (compacted to fit the row)
+          const SizedBox(width: 16),
+          // Language Toggle
           _buildLangToggle(),
         ],
       ),
@@ -124,24 +123,25 @@ class QuickStatsRow extends StatelessWidget {
         onTap: onToggleLanguage,
         borderRadius: BorderRadius.circular(50),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           decoration: BoxDecoration(
-            color: AppColors.cardBg,
+            color: theme.AppColors.surface,
             borderRadius: BorderRadius.circular(50),
-            border: Border.all(color: AppColors.borderSubtle, width: 1),
+            border: Border.all(color: theme.AppColors.border, width: 1),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.translate, color: AppColors.textSecondary, size: 16),
-              const SizedBox(width: 6),
+              Icon(Icons.translate,
+                  color: theme.AppColors.textPrimary, size: 18),
+              const SizedBox(width: 8),
               Text(
                 displayText,
                 style: AppFonts.caption(
                   text: displayText,
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ).copyWith(letterSpacing: 0.5),
+                  fontSize: 14,
+                  color: theme.AppColors.textPrimary,
+                ).copyWith(letterSpacing: 0.5, fontWeight: FontWeight.w700),
               ),
             ],
           ),

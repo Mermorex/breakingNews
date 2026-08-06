@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:news_app/data/grok_service.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
-import '../constants/app_colors.dart';
+import 'package:news_app/core/theme/app_colors.dart' as theme;
 import '../constants/app_fonts.dart';
 
 class NewsSectionBlock extends StatefulWidget {
@@ -99,17 +98,19 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 40),
         child: Center(
-            child: CircularProgressIndicator(color: AppColors.accentOrange)),
+            child:
+                CircularProgressIndicator(color: theme.AppColors.tunisianRed)),
       );
     }
 
     if (widget.articles.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(color: widget.accentColor.withOpacity(0.5), width: 2),
+          top: BorderSide(color: theme.AppColors.border, width: 2),
         ),
       ),
       child: Column(
@@ -117,30 +118,38 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
         children: [
           // --- JOURNAL HEADER ---
           Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 20),
+            padding: const EdgeInsets.only(top: 24, bottom: 24),
             child: Row(
               children: [
-                Text(widget.emoji, style: const TextStyle(fontSize: 22)),
-                const SizedBox(width: 10),
+                Text(widget.emoji, style: const TextStyle(fontSize: 24)),
+                const SizedBox(width: 12),
                 Text(
                   widget.title.toUpperCase(),
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
+                  style: AppFonts.title(
+                    text: widget.title.toUpperCase(),
+                    fontSize: 20,
+                    color: theme.AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
-                    color: widget.accentColor,
-                    letterSpacing: 1.5,
-                  ),
+                  ).copyWith(letterSpacing: 1.2),
                 ),
                 const Spacer(),
                 GestureDetector(
                   onTap: widget.onViewAll,
-                  child: Text(
-                    'VIEW ALL',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textMuted,
-                      letterSpacing: 1.2,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: theme.AppColors.background,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'View All',
+                      style: AppFonts.body(
+                        text: 'View All',
+                        fontSize: 13,
+                        color: theme.AppColors.frenchBlue,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -148,16 +157,13 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
             ),
           ),
 
-          // --- LEAD STORY (Full Width) ---
+          // --- LEAD STORY ---
           _buildLeadArticle(0, isArabicSection),
 
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Divider(
-                color: AppColors.borderSubtle,
-                thickness: 1,
-                indent: 10,
-                endIndent: 10),
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child:
+                Divider(color: theme.AppColors.border, thickness: 1, height: 1),
           ),
 
           // --- TWO COLUMN GRID ---
@@ -196,7 +202,7 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
                     ),
                     Container(
                       width: 1,
-                      color: AppColors.borderSubtle.withOpacity(0.5),
+                      color: theme.AppColors.border,
                       margin: const EdgeInsets.symmetric(horizontal: 16),
                     ),
                     Expanded(
@@ -227,6 +233,9 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
     final isArabic = isArabicSection || AppFonts.containsArabic(article.title);
     final isExpanded = _expandedRecaps.contains(index);
     final isLoading = _loadingSummaries.contains(index);
+    final titleText = widget.getDisplayTitle(article);
+    final sourceText = widget.getDisplaySource(article);
+    final timeText = _formatTimeAgo(article.publishedAt);
 
     return GestureDetector(
       onTap: () => widget.onLaunchUrl(article.link),
@@ -235,69 +244,68 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
             isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Text(
-            widget.getDisplayTitle(article),
+            titleText,
             style: AppFonts.title(
-              text: widget.getDisplayTitle(article),
-              fontSize: 22,
-              color: AppColors.textPrimary,
+              text: titleText,
+              fontSize: 26,
+              color: theme.AppColors.textPrimary,
               fontWeight: FontWeight.w800,
-              height: 1.25,
+              height: 1.3,
             ),
-            maxLines: 3,
+            maxLines: 4,
             overflow: TextOverflow.ellipsis,
             textAlign: isArabic ? TextAlign.right : TextAlign.left,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment:
                 isArabic ? MainAxisAlignment.start : MainAxisAlignment.end,
             children: [
               Text(
-                widget.getDisplaySource(article),
+                sourceText,
                 style: AppFonts.caption(
-                  text: widget.getDisplaySource(article),
-                  fontSize: 11,
+                  text: sourceText,
+                  fontSize: 13,
                   color: widget.accentColor,
-                  fontWeight: FontWeight.w700,
-                ),
+                ).copyWith(fontWeight: FontWeight.w700),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Text(
-                _formatTimeAgo(article.publishedAt),
-                style: AppFonts.caption(
-                  text: _formatTimeAgo(article.publishedAt),
-                  fontSize: 11,
-                  color: AppColors.textMuted,
+                timeText,
+                style: AppFonts.body(
+                  text: timeText,
+                  fontSize: 13,
+                  color: theme.AppColors.textSecondary,
                 ),
               ),
-              const SizedBox(width: 12),
+              const Spacer(),
 
-              // --- BIGGER AI RECAP BUTTON ---
+              // --- AI RECAP BUTTON ---
               GestureDetector(
                 onTap: () => _toggleRecap(index),
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.accentPurple.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(6),
+                    color: theme.AppColors.accentPurple.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                        color: AppColors.accentPurple.withOpacity(0.4),
+                        color: theme.AppColors.accentPurple.withOpacity(0.3),
                         width: 1),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.auto_awesome,
-                          size: 16, color: AppColors.accentPurple),
-                      const SizedBox(width: 6),
+                          size: 16, color: theme.AppColors.accentPurple),
+                      const SizedBox(width: 8),
                       Text(
-                        'AI RECAP',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
+                        'AI Recap',
+                        style: AppFonts.body(
+                          text: 'AI Recap',
+                          fontSize: 13,
+                          color: theme.AppColors.accentPurple,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.accentPurple,
-                          letterSpacing: 0.8,
                         ),
                       ),
                     ],
@@ -306,43 +314,43 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
               ),
             ],
           ),
-
-          // --- BIGGER INLINE RECAP EXPANSION ---
           if (isExpanded) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20), // Increased padding
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppColors.cardBgElevated,
+                color: theme.AppColors.background,
                 borderRadius: BorderRadius.circular(12),
                 border: Border(
                     left: BorderSide(
-                        color: AppColors.accentPurple,
-                        width: 4)), // Thicker border
+                        color: theme.AppColors.accentPurple, width: 4)),
               ),
               child: isLoading
                   ? const SizedBox(
                       height: 40,
                       child: Center(
-                          child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: AppColors.accentPurple))))
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: theme.AppColors.accentPurple),
+                        ),
+                      ),
+                    )
                   : Text(
                       _summaries[index] ?? '',
                       style: AppFonts.body(
                         text: _summaries[index] ?? '',
-                        fontSize: 15, // Bigger text
-                        color: AppColors.textSecondary,
-                        height: 1.7, // More line spacing
+                        fontSize: 16,
+                        color: theme.AppColors.textSecondary,
+                        height: 1.6,
                         fontWeight: FontWeight.w500,
                       ),
                       textAlign: isArabic ? TextAlign.right : TextAlign.left,
                     ),
-            ),
+            )
           ]
         ],
       ),
@@ -356,17 +364,20 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
     final isArabic = isArabicSection || AppFonts.containsArabic(article.title);
     final isExpanded = _expandedRecaps.contains(index);
     final isLoading = _loadingSummaries.contains(index);
+    final titleText = widget.getDisplayTitle(article);
+    final sourceText = widget.getDisplaySource(article);
+    final timeText = _formatTimeAgo(article.publishedAt);
 
     return GestureDetector(
       onTap: () => widget.onLaunchUrl(article.link),
       child: Container(
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
           border: isLast
               ? null
               : Border(
                   bottom: BorderSide(
-                      color: AppColors.borderSubtle.withOpacity(0.3),
+                      color: theme.AppColors.border.withOpacity(0.5),
                       width: 1)),
         ),
         child: Column(
@@ -374,68 +385,66 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
               isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             Text(
-              widget.getDisplayTitle(article),
-              style: AppFonts.body(
-                text: widget.getDisplayTitle(article),
-                fontSize: 14,
-                color: AppColors.textPrimary,
+              titleText,
+              style: AppFonts.title(
+                text: titleText,
+                fontSize: 17,
+                color: theme.AppColors.textPrimary,
                 fontWeight: FontWeight.w700,
-                height: 1.35,
+                height: 1.4,
               ),
-              maxLines: 3,
+              maxLines: 4,
               overflow: TextOverflow.ellipsis,
               textAlign: isArabic ? TextAlign.right : TextAlign.left,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment:
                   isArabic ? MainAxisAlignment.start : MainAxisAlignment.end,
               children: [
                 Text(
-                  widget.getDisplaySource(article),
+                  sourceText,
                   style: AppFonts.caption(
-                    text: widget.getDisplaySource(article),
-                    fontSize: 9,
+                    text: sourceText,
+                    fontSize: 12,
                     color: widget.accentColor,
-                  ),
+                  ).copyWith(fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Text(
-                  _formatTimeAgo(article.publishedAt),
-                  style: AppFonts.caption(
-                    text: _formatTimeAgo(article.publishedAt),
-                    fontSize: 9,
-                    color: AppColors.textMuted,
+                  timeText,
+                  style: AppFonts.body(
+                    text: timeText,
+                    fontSize: 12,
+                    color: theme.AppColors.textSecondary,
                   ),
                 ),
                 const Spacer(),
-
-                // --- BIGGER AI RECAP BUTTON FOR COLUMNS ---
                 GestureDetector(
                   onTap: () => _toggleRecap(index),
                   child: Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: AppColors.accentPurple.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(4),
+                      color: theme.AppColors.accentPurple.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                          color: AppColors.accentPurple.withOpacity(0.3),
+                          color: theme.AppColors.accentPurple.withOpacity(0.3),
                           width: 1),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.auto_awesome,
-                            size: 12, color: AppColors.accentPurple),
-                        const SizedBox(width: 4),
+                            size: 12, color: theme.AppColors.accentPurple),
+                        const SizedBox(width: 6),
                         Text(
-                          'RECAP',
-                          style: GoogleFonts.inter(
-                            fontSize: 8,
+                          'Recap',
+                          style: AppFonts.body(
+                            text: 'Recap',
+                            fontSize: 11,
+                            color: theme.AppColors.accentPurple,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.accentPurple,
-                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
@@ -444,43 +453,43 @@ class _NewsSectionBlockState extends State<NewsSectionBlock> {
                 ),
               ],
             ),
-
-            // --- BIGGER INLINE RECAP EXPANSION FOR COLUMNS ---
             if (isExpanded) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16), // Increased padding
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.cardBgElevated,
+                  color: theme.AppColors.background,
                   borderRadius: BorderRadius.circular(8),
                   border: Border(
                       left: BorderSide(
-                          color: AppColors.accentPurple,
-                          width: 3)), // Thicker border
+                          color: theme.AppColors.accentPurple, width: 3)),
                 ),
                 child: isLoading
                     ? const SizedBox(
                         height: 30,
                         child: Center(
-                            child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.accentPurple))))
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.AppColors.accentPurple),
+                          ),
+                        ),
+                      )
                     : Text(
                         _summaries[index] ?? '',
                         style: AppFonts.body(
                           text: _summaries[index] ?? '',
-                          fontSize: 13, // Bigger text
-                          color: AppColors.textSecondary,
-                          height: 1.6, // More line spacing
+                          fontSize: 14,
+                          color: theme.AppColors.textSecondary,
+                          height: 1.6,
                           fontWeight: FontWeight.w500,
                         ),
                         textAlign: isArabic ? TextAlign.right : TextAlign.left,
                       ),
-              ),
+              )
             ]
           ],
         ),

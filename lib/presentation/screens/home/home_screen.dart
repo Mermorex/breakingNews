@@ -6,6 +6,9 @@ import 'package:news_app/presentation/screens/irannews_screen.dart';
 import 'package:news_app/presentation/screens/Tunisianscreen.dart';
 import 'package:news_app/presentation/screens/international_screen.dart';
 import 'package:news_app/presentation/screens/widget/lib/presentation/widget/web_nav_bar.dart';
+
+// ✅ FIX: Added 'as theme' prefix to avoid conflicts with other AppColors classes
+import '../../../core/theme/app_colors.dart' as theme;
 import '../../../core/theme/app_theme.dart';
 import '../algeria_news_screen.dart';
 import '../morocco_news_screen.dart';
@@ -31,13 +34,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 800),
     );
     _controller.addListener(_onControllerUpdate);
-
-    // ✅ FIX: Call load data without awaiting it.
-    // This allows the UI to build immediately and react to state changes.
     _loadData();
   }
 
-  // Changed to void (no async/await here) to prevent blocking the animation
   void _loadData() {
     _controller.loadDashboardData();
   }
@@ -52,8 +51,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _onControllerUpdate() {
-    // ✅ FIX: Trigger animation as soon as data appears
-    // If we have data and the animation hasn't started yet, start it.
     if (_controller.totalArticles > 0 &&
         _fadeController.status == AnimationStatus.dismissed) {
       _fadeController.forward();
@@ -63,7 +60,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _handleNavigation(int index) {
     if (_controller.selectedIndex != index) {
-      // Reset animation for new screen if needed, or just switch
       _fadeController.reverse().then((_) {
         _controller.setSelectedIndex(index);
         _fadeController.forward();
@@ -74,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _openMobileMenu() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF0F1219),
+      backgroundColor: theme.AppColors.surface, // White background
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -88,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: theme.AppColors.border, // Light gray handle
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -98,19 +94,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 style: GoogleFonts.montserrat(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: theme.AppColors.textPrimary, // Dark text
                 ),
               ),
               const SizedBox(height: 24),
               _buildMenuItem(Icons.dashboard, 'Dashboard', 0),
-              _buildMenuItem(Icons.flag, 'Tunisia News', 1, color: Colors.red),
+              _buildMenuItem(Icons.flag, 'Tunisia News', 1,
+                  color: theme.AppColors.tunisianRed),
               _buildMenuItem(Icons.flag, 'Morocco News', 2,
-                  color: Colors.green),
+                  color: theme.AppColors.internationalGreen),
               _buildMenuItem(Icons.flag, 'Algeria News', 3,
-                  color: Colors.lightGreen),
-              _buildMenuItem(Icons.flag, 'Iran News', 4, color: Colors.teal),
+                  color: theme.AppColors.internationalGreen),
+              _buildMenuItem(Icons.flag, 'Iran News', 4,
+                  color: theme.AppColors.tunisianRed),
               _buildMenuItem(Icons.public, 'International', 5,
-                  color: Colors.purple),
+                  color: theme.AppColors.frenchBlue),
             ],
           ),
         );
@@ -122,17 +120,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       {Color? color}) {
     final isSelected = _controller.selectedIndex == index;
     return ListTile(
-      leading: Icon(icon,
-          color:
-              isSelected ? const Color(0xFFFF8C00) : (color ?? Colors.white54)),
+      leading: Icon(
+        icon,
+        color: isSelected
+            ? theme.AppColors.tunisianRed
+            : (color ?? theme.AppColors.textSecondary),
+      ),
       title: Text(
         title,
         style: GoogleFonts.montserrat(
-          color: isSelected ? Colors.white : Colors.white70,
+          color: isSelected
+              ? theme.AppColors.textPrimary
+              : theme.AppColors.textSecondary,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      tileColor: isSelected ? Colors.white.withOpacity(0.05) : null,
+      tileColor:
+          isSelected ? theme.AppColors.tunisianRed.withOpacity(0.05) : null,
       onTap: () {
         Navigator.pop(context);
         _handleNavigation(index);
@@ -157,21 +161,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return const IranianNewsScreen(isEmbedded: true);
       case 5:
         return const InternationalNewsScreen(isEmbedded: true);
-      case 6: // FRANCE
+      case 6:
         return const FrenchNewsScreen(isEmbedded: true);
       default:
         return _buildDashboard();
     }
   }
 
-  static const Color cryptoDarkBg = Color(0xFF0B0E14);
-
   @override
   Widget build(BuildContext context) {
     return Theme(
       data: AppTheme.dashboardTheme,
       child: Scaffold(
-        backgroundColor: cryptoDarkBg,
+        backgroundColor: theme.AppColors.background, // Light background
         body: Column(
           children: [
             WebNavBar(
@@ -179,7 +181,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               onItemSelected: _handleNavigation,
             ),
             Expanded(
-              // Show loading spinner ONLY if we have ZERO articles
               child: _controller.selectedIndex == 0 &&
                       _controller.totalArticles == 0
                   ? const _LoadingView()
@@ -213,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       onViewMorocco: () => _handleNavigation(2),
       onViewAlgeria: () => _handleNavigation(3),
       onViewIran: () => _handleNavigation(4),
-      onViewFrance: () => _handleNavigation(6), // This now works!
+      onViewFrance: () => _handleNavigation(6),
       isLoading: _controller.isLoading,
     );
   }
@@ -233,12 +234,15 @@ class _LoadingView extends StatelessWidget {
             height: 60,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF8C00).withOpacity(0.1),
+              color:
+                  theme.AppColors.tunisianRed.withOpacity(0.1), // Light red bg
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const CircularProgressIndicator(
+            // ✅ FIX: Removed 'const' to prevent invalid constant value error
+            child: CircularProgressIndicator(
               strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF8C00)),
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(theme.AppColors.tunisianRed),
             ),
           ),
           const SizedBox(height: 24),
@@ -247,7 +251,7 @@ class _LoadingView extends StatelessWidget {
             style: GoogleFonts.montserrat(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: theme.AppColors.textPrimary, // Dark text
             ),
           ),
         ],
