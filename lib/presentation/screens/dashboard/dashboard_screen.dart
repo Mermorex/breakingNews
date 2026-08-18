@@ -5,9 +5,8 @@ import 'package:news_app/data/models/news_source.dart';
 import 'package:news_app/data/models/rss_item_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:html' as html;
-
-// ✅ Using central theme files instead of local constants
-import 'package:news_app/core/theme/app_colors.dart' as theme;
+import 'constants/app_colors.dart';
+import 'constants/app_fonts.dart';
 import 'utils/source_extractor.dart';
 import 'widgets/dashboard_header.dart';
 import 'widgets/quick_stats_row.dart';
@@ -15,7 +14,7 @@ import 'widgets/news_section_block.dart';
 
 // --- SECTION CONFIGURATION MODEL ---
 class _SectionConfig {
-  final String emoji; // We will keep emoji in config but hide it in UI later
+  final String emoji;
   final String title;
   final String subtitle;
   final List<NewsSource> sources;
@@ -102,7 +101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         subtitle:
             'Global headlines • ${NewsSources.international.length} sources',
         sources: NewsSources.international,
-        accentColor: theme.AppColors.frenchBlue,
+        accentColor: AppColors.accentOrange,
         onViewAll: widget.onViewWorldNews,
       ),
       _SectionConfig(
@@ -110,7 +109,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: 'Tunisia',
         subtitle: 'Local updates • ${NewsSources.tunisian.length} sources',
         sources: NewsSources.tunisian,
-        accentColor: theme.AppColors.tunisianRed,
+        accentColor: AppColors.tunisiaAccent,
         onViewAll: widget.onViewTunisia,
       ),
       _SectionConfig(
@@ -118,7 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: 'Morocco',
         subtitle: 'Local updates • ${NewsSources.moroccan.length} sources',
         sources: NewsSources.moroccan,
-        accentColor: theme.AppColors.internationalGreen,
+        accentColor: AppColors.moroccoAccent,
         onViewAll: widget.onViewMorocco,
       ),
       _SectionConfig(
@@ -126,7 +125,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: 'Algeria',
         subtitle: 'Local updates • ${NewsSources.algerian.length} sources',
         sources: NewsSources.algerian,
-        accentColor: theme.AppColors.internationalGreen,
+        accentColor: AppColors.algeriaAccent,
         onViewAll: widget.onViewAlgeria,
       ),
       _SectionConfig(
@@ -134,7 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: 'France',
         subtitle: 'French news • ${NewsSources.french.length} sources',
         sources: NewsSources.french,
-        accentColor: theme.AppColors.frenchBlue,
+        accentColor: AppColors.franceAccent,
         onViewAll: widget.onViewFrance,
       ),
       _SectionConfig(
@@ -142,13 +141,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: 'Iran',
         subtitle: 'Regional news • ${NewsSources.iranian.length} sources',
         sources: NewsSources.iranian,
-        accentColor: theme.AppColors.accentPurple, // Replaced with purple
+        accentColor: AppColors.iranAccent,
         onViewAll: widget.onViewIran,
       ),
     ];
   }
 
   // ==================== TOP STORY ====================
+
   RssItemModel? get _topStory {
     final allItems = [
       ...widget.worldNewsArticles,
@@ -165,6 +165,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ==================== NEWS SELECTION ====================
+
   List<RssItemModel> _getArticlesForSection(String title) {
     switch (title) {
       case 'World News':
@@ -185,6 +186,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ==================== TRANSLATION ====================
+
   void _toggleLanguage() {
     setState(() {
       if (_currentLangMode == 'original') {
@@ -197,18 +199,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  // ✅ Replaced AppFonts.containsArabic with built-in RegExp
-  bool _containsArabic(String text) {
-    return RegExp(r'[\u0600-\u06FF]').hasMatch(text);
-  }
-
   String _formatMixedText(String text) {
     if (_currentLangMode != 'arabic') return text;
     final words = text.split(' ');
     final buffer = StringBuffer();
     for (var word in words) {
       final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
-      if (cleanWord.isNotEmpty && !_containsArabic(cleanWord)) {
+      if (cleanWord.isNotEmpty && !AppFonts.containsArabic(cleanWord)) {
         buffer.write('($word) ');
       } else {
         buffer.write('$word ');
@@ -264,7 +261,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return _translationCache[cacheKey]!;
 
     bool toArabic = targetMode == 'arabic';
-    bool isSourceArabic = _containsArabic(text);
+    bool isSourceArabic = AppFonts.containsArabic(text);
 
     if ((toArabic && isSourceArabic) ||
         (!toArabic && !isSourceArabic && targetMode == 'english')) {
@@ -292,6 +289,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ==================== URL LAUNCHER ====================
+
   Future<void> _launchUrl(String url) async {
     try {
       html.window.open(url, '_blank');
@@ -304,11 +302,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ==================== BUILD ====================
+
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        // 1. Clean Top Story Header
+        // 1. Cinematic Hero Header
         SliverToBoxAdapter(
           child: DashboardHeader(
             topArticle: _topStory,
@@ -318,7 +317,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
 
-        // 2. Categories & Language Toggle
+        // 2. Sleek Pill Filters & Language Toggle
         SliverToBoxAdapter(
           child: QuickStatsRow(
             selectedIndex: _selectedCategoryIndex,
@@ -339,9 +338,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        const SliverToBoxAdapter(child: SizedBox(height: 10)),
 
-        // 3. The Journal Sections
+        // 3. The Journal Sections (Stacked vertically like a real newspaper)
         ..._sections.map((section) => SliverToBoxAdapter(
               child: NewsSectionBlock(
                 emoji: section.emoji,
